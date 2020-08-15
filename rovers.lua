@@ -1,8 +1,6 @@
 -- rovers
 
 Rover = include 'lib/rover'
-Discipline = include 'lib/discipline'
-Subject = include 'lib/subject'
 
 rover_clock = nil
 
@@ -14,12 +12,21 @@ tau = math.pi * 2
 arc_values = { {}, {}, {}, {} }
 rovers = {}
 held_keys = {}
+cursors = {}
+cursor_ps = {}
 for r = 1, 4 do
 	rovers[r] = Rover.new()
+	rovers[r].on_point_cross = function(self, v)
+		crow.ii.tt.script_v(r, v * 5)
+	end
 	held_keys[r] = {
 		div = false,
-		drift = false
+		drift = false,
+		map = false,
+		map_edit = false
 	}
+	cursors[r] = 0
+	cursor_ps[r] = 1
 end
 
 function a_blend(r, x, value)
@@ -56,22 +63,19 @@ end
 function a_refresh()
 	for r = 1, 4 do
 		for x = 1, 64 do
-			a:led(r, x, math.floor(arc_values[r][x] * 15 + 0.5))
+			a:led(r, x, math.min(15, math.floor(arc_values[r][x] * 15 + 0.5)))
 		end
 	end
 	a:refresh()
 end
 
-function a_all(value)
-	for r = 1, 4 do
-		for x = 1, 64 do
-			arc_values[r][x] = value
-		end
+function a_all(r, value)
+	for x = 1, 64 do
+		arc_values[r][x] = value
 	end
 end
 
 function tick()
-	a_all(0)
 	g:all(0)
 	for r = 1, 4 do
 
@@ -79,7 +83,24 @@ function tick()
 		local rover = rovers[r]
 		rover:step()
 
-		if held_keys.drift then
+		a_all(r, rover.point_highlight.value * rover.point_highlight.value * 0.3)
+
+		if held_keys.map then
+			if held_keys.map_edit then
+				local point = rover.map.points[cursor_ps[r]]
+				a_spiral(r, point.o * tau / 3, 0.2, 0.8)
+			else
+				local cursor = cursors[r]
+				local cursor_p = cursor_ps[r]
+				a_notch(r, cursor, 1, 0.8)
+				a_notch(r, rover.position, 2, 0.3)
+				local map = rover.map
+				for p, point in ipairs(map.points) do
+					a_notch(r, point.i, 1, p == cursor_p and 0.5 or 0.2)
+				end
+				a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
+			end
+		elseif held_keys.drift then
 			a_spiral(r, rover.drift_amount * math.pi, 0.2, 0.8)
 		elseif held_keys.div then
 			local div = params:get(string.format('rover_%d_div', r))
@@ -100,6 +121,7 @@ function tick()
 			if rover.div ~= 1 then
 				a_notch(r, rover.disposition, 1.5, 0.3)
 			end
+			a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
 		end
 
 		local gx = (r - 1) * 4 + 1
@@ -123,6 +145,15 @@ function tick()
 		g:led(gx + 2, 4, math.floor(util.clamp(noise_level, 0, 10) + 0.5))
 		--]]
 		-- control drift amount, maybe other factors (inertias? noise amplitude...? maybe macro controls with 'weight' controlling amplitude + inertia inversely)
+
+		if held_keys.map then
+			g:led(gx, 6, 10)
+			g:led(gx + 1, 6, held_keys.map_edit and 10 or 2)
+			g:led(gx + 2, 6, 2)
+			g:led(gx + 3, 6, 2)
+		else
+			g:led(gx, 6, 2)
+		end
 	end
 	a_refresh()
 	g:refresh()
@@ -150,7 +181,19 @@ function a.delta(r, d)
 	end
 	local held_keys = held_keys[r]
 	local rover = rovers[r]
-	if held_keys.drift then
+	if held_keys.map then
+		local cursor = cursors[r]
+		if held_keys.map_edit then
+			local point = rover.map.points[cursor_ps[r]]
+			cursor = point.i
+			point.o = util.clamp(point.o + d * 0.001, -math.pi, math.pi)
+		else
+			cursor = (cursor + d * 0.002) % tau
+			local o, p = rover.map:read(cursor)
+			cursor_ps[r] = p
+		end
+		cursors[r] = cursor
+	elseif held_keys.drift then
 		rover.drift_amount = rover.drift_amount + d * 0.001
 	elseif held_keys.div then
 		params:delta(string.format('rover_%d_div', r), d * 0.02)
@@ -180,6 +223,18 @@ function g.key(x, y, z)
 		held_keys[r].div = z == 1
 	elseif (rx == 2 or rx == 3) and y == 4 then
 		held_keys[r].drift = z == 1
+	elseif rx == 1 and y == 6 then
+		held_keys[r].map = z == 1
+	elseif rx == 2 and y == 6 then
+		held_keys[r].map_edit = z == 1
+	elseif rx == 3 and y == 6 and z == 1 then
+		rover.map:insert(cursors[r])
+		local o, p = rover.map:read(cursors[r])
+		cursor_ps[r] = p
+	elseif rx == 4 and y == 6 and z == 1 then
+		rover.map:delete(cursors[r])
+		local o, p = rover.map:read(cursors[r])
+		cursor_ps[r] = p
 	end
 	-- TODO: nudge drive using far left + right buttons
 	-- ...and adjust nudge force by holding nudge buttons + touching arc?

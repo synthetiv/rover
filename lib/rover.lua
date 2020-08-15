@@ -1,3 +1,5 @@
+local Map = include 'lib/map'
+
 local rate = 30
 
 local tau = math.pi * 2
@@ -56,6 +58,11 @@ function Rover.new()
 	r.div = 1
 	r.disposition = 0
 	r.position = 0
+	r.map = Map.new()
+	r.p = 1
+	r.point_distance = 0
+	r.point_highlight = Integrator.new(0.9, 1)
+	r.highlight_point = r.map.points[1]
 	-- TODO: I don't think I like determining inertia based on proximity to lit LED after all;
 	-- if rate is high, it's really hard to slow down by tapping lightly
 	r.hold_points = {
@@ -68,7 +75,8 @@ function Rover.new()
 		a = 0,
 		b = 0,
 		c = 0,
-		d = 0
+		d = 0,
+		p = 0
 	}
 	return r
 end
@@ -83,13 +91,29 @@ function Rover:step()
 	self.noise:step((math.random() - 0.5))
 	self.drift:step(self.noise.value)
 	self.drive:step()
+	self.point_highlight:step()
 	self.rate = self.drift.value * math.max(0, self.drift_amount) + self.drive.value * math.pow(1 + math.max(0, -self.drift_amount), self.drift.value)
-	self.disposition = (self.disposition + self.rate)
-	self.position = (self.position + self.rate / self.div)
+	self.disposition = (self.disposition + self.rate) % tau
+	local div_rate = self.rate / self.div
+	self.position = (self.position + div_rate) % tau
 	self.values.a = math.cos(self.position - qpi) * 0.5 + 0.5
 	self.values.b = math.sin(self.position - qpi) * 0.5 + 0.5
 	self.values.c = 1 - self.values.a
 	self.values.d = 1 - self.values.b
+
+	self.values.p, self.p = self.map:read(self.position)
+	local point = self.map.points[self.p]
+	local distance = self.position - point.i
+	local d2 = self.position - tau - point.i
+	if math.abs(d2) < math.abs(distance) then
+		distance = d2
+	end
+	if (self.position >= point.i and self.position - div_rate < point.i) or (self.position <= point.i and self.position - div_rate > point.i) or (self.position <= point.i + tau and self.position - div_rate > point.i + tau) or (self.position >= point.i - tau and self.position - div_rate < point.i - tau) then
+		self.point_highlight:add(1)
+		self.highlight_point = point
+		self:on_point_cross(point.o)
+	end
+	self.point_distance = distance
 
 	local drive_inertia = self.drive_inertia_base
 	for p, held in pairs(self.hold_points) do
@@ -99,5 +123,7 @@ function Rover:step()
 	end
 	self.drive.inertia = drive_inertia
 end
+
+function Rover:on_point_cross() end
 
 return Rover
