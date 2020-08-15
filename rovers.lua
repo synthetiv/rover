@@ -35,10 +35,8 @@ function a_notch(r, angle, width, level)
 		local w = width / 2
 		local xl = x - w
 		local xh = x + w
-		local ll = xl + 0.5 - math.floor(xl + 0.5)
-		local lh = 1 - (xh + 0.5 - math.floor(xh + 0.5))
-		ll = 1 - (ll * ll)
-		lh = 1 - (lh * lh)
+		local ll = 1 - (xl + 0.5 - math.floor(xl + 0.5))
+		local lh = xh + 0.5 - math.floor(xh + 0.5)
 		a_blend(r, xl, ll * level)
 		a_blend(r, xh, lh * level)
 		for x = math.floor(xl + 1.5), math.floor(xh - 0.5) do
