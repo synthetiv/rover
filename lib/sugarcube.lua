@@ -4,9 +4,9 @@ local cubes = {}
 local v = 1
 
 local function event_phase(voice, phase)
-	print('sc phase', voice, phase)
 	if cubes[voice] ~= nil then
 		cubes[voice]._position = phase
+		cubes[voice]:on_poll()
 	end
 end
 
@@ -14,10 +14,12 @@ local SugarCube = {}
 SugarCube.__index = SugarCube
 
 local state_STOP = 0
-local state_PLAY = 1
-local state_RECORD = 2
-local state_OVERDUB = 3
+local state_MUTE = 1
+local state_PLAY = 2
+local state_RECORD = 3
+local state_OVERDUB = 4
 SugarCube.state_STOP = state_STOP
+SugarCube.state_MUTE = state_MUTE
 SugarCube.state_PLAY = state_PLAY
 SugarCube.state_RECORD = state_RECORD
 SugarCube.state_OVERDUB = state_OVERDUB
@@ -32,14 +34,15 @@ function SugarCube.new(buffer)
 		voice = v,
 		buffer = buffer or 1,
 		state = state_STOP,
-		_start = 1,
-		_end = 4,
+		_loop_start = 1,
+		_loop_end = 4,
 		_position = 1,
 		_rec_level = 1,
 		_dub_level = 1,
 		_play_level = 1,
 		_fade_time = 0.2,
 		_rate = 0,
+		on_poll = norns.none
 	}
 	setmetatable(c, SugarCube)
 

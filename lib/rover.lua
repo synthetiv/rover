@@ -66,7 +66,9 @@ function Rover.new()
 	r.point_highlight = Integrator.new(0.9, 1)
 	r.highlight_point = r.map.points[1]
 	r.cut = SugarCube.new()
-	-- TODO: set loop points
+	r.cut.on_poll = function(self)
+		r.position = self._position - self._loop_start
+	end
 	r.hold = 0
 	r.values = {
 		a = 0,
@@ -104,9 +106,8 @@ function Rover:step()
 		self.drive:step()
 	end
 	self.point_highlight:step()
-	self.rate = self.drift.value * math.max(0, self.drift_amount) + self.drive.value * math.pow(1 + math.max(0, -self.drift_amount), self.drift.value)
+	self.rate = self.drift.value * math.max(0, self.drift_amount) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -self.drift_amount))
 	self.cut.rate = self.rate * rate
-	-- TODO: set position based on softcut poll, if softcut-ing
 	self.disposition = (self.disposition + self.rate) % tau
 	local div_rate = self.rate / self.div
 	self.position = (self.position + div_rate) % tau
@@ -122,6 +123,7 @@ function Rover:step()
 	if math.abs(d2) < math.abs(distance) then
 		distance = d2
 	end
+	-- TODO: not firing reliably with softcut + no point at 0.0
 	if (self.position >= point.i and self.position - div_rate < point.i) or (self.position <= point.i and self.position - div_rate > point.i) or (self.position <= point.i + tau and self.position - div_rate > point.i + tau) or (self.position >= point.i - tau and self.position - div_rate < point.i - tau) then
 		self.point_highlight.value = 1
 		self.highlight_point = point
