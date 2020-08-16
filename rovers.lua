@@ -212,13 +212,13 @@ function g.key(x, y, z)
 		-- rover.drive.inertia = rover.drive.inertia + d
 	-- end
 	if rx == 3 and y == 1 then
-		rover.hold_points.a = z == 1
+		rover.hold = rover.hold + (z == 1 and 1 or -1)
 	elseif rx == 3 and y == 2 then
-		rover.hold_points.b = z == 1
+		rover.hold = rover.hold + (z == 1 and 1 or -1)
 	elseif rx == 2 and y == 2 then
-		rover.hold_points.c = z == 1
+		rover.hold = rover.hold + (z == 1 and 1 or -1)
 	elseif rx == 2 and y == 1 then
-		rover.hold_points.d = z == 1
+		rover.hold = rover.hold + (z == 1 and 1 or -1)
 	elseif (rx == 2 or rx == 3) and y == 3 then
 		held_keys[r].div = z == 1
 	elseif (rx == 2 or rx == 3) and y == 4 then
