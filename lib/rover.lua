@@ -120,7 +120,7 @@ function Rover:step()
 		distance = d2
 	end
 	if (self.position >= point.i and self.position - div_rate < point.i) or (self.position <= point.i and self.position - div_rate > point.i) or (self.position <= point.i + tau and self.position - div_rate > point.i + tau) or (self.position >= point.i - tau and self.position - div_rate < point.i - tau) then
-		self.point_highlight:add(1)
+		self.point_highlight.value = 1
 		self.highlight_point = point
 		self:on_point_cross(point.o)
 	end
