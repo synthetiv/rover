@@ -1,5 +1,7 @@
 -- rovers
 
+rate = 30
+
 Rover = include 'lib/rover'
 
 rover_clock = nil
@@ -23,7 +25,9 @@ for r = 1, 4 do
 		div = false,
 		drift = false,
 		map = false,
-		map_edit = false
+		map_edit = false,
+		play = false,
+		rec = false
 	}
 	cursors[r] = 0
 	cursor_ps[r] = 1
@@ -162,6 +166,19 @@ function tick()
 		else
 			g:led(gx, 6, led_blend_15(0.15, math.abs(rover.values.p)))
 		end
+
+		local cut = rover.cut
+		if cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB then
+			g:led(gx + 1, 8, 6)
+		else
+			g:led(gx + 1, 8, 2)
+		end
+		if cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB then
+			g:led(gx + 2, 8, 6)
+		else
+			g:led(gx + 2, 8, 2)
+		end
+		g:led(gx + 3, 8, 2)
 	end
 	a_refresh()
 	g:refresh()
@@ -243,20 +260,110 @@ function g.key(x, y, z)
 		rover.map:delete(cursors[r])
 		local o, p = rover.map:read(cursors[r])
 		cursor_ps[r] = p
+	elseif rx == 2 and y == 8 then
+		held_keys.play = z == 1
+		local cut = rover.cut
+		if z == 1 then
+			if held_keys.rec then
+				cut:overdub()
+			else
+				cut:play()
+			end
+		end
+	elseif rx == 3 and y == 8 then
+		held_keys.rec = z == 1
+		local cut = rover.cut
+		if z == 1 then
+			if cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB then
+				cut:play()
+			else
+				if held_keys.play then
+					cut:overdub()
+				else
+					cut:record()
+				end
+			end
+		end
+	elseif rx == 4 and y == 8 and z == 1 then
+		rover.cut:stop()
 	end
 	-- TODO: nudge drive using far left + right buttons
 	-- ...and adjust nudge force by holding nudge buttons + touching arc?
 end
 
 function init()
+
 	crow.clear()
 	for o = 1, 4 do
-		crow.output[o].slew = 1/20
+		crow.output[o].slew = 1/rate
 	end
+
 	rover_clock = metro.init{
-		time = 1/20,
+		time = 1/rate,
 		event = tick
 	}
+
+	for r = 1, 4 do
+		rovers[r].cut:init()
+	end
+	softcut.poll_start_phase()
+
+	--[[
+	params:add{
+		id = 'touch_type',
+		name = 'touch control',
+		type = 'option',
+		labels = {
+			'position',
+			'rate'
+		},
+		action = function(value)
+			-- TODO!
+		end
+	}
+
+	params:add{
+		id = 'touch_weight',
+		name = 'touch weight',
+		type = 'control',
+		controlspec = controlspec.new(0, 0.9999, 'lin', 0.001, 0.6),
+		action = function(value)
+			-- TODO
+		end
+	}
+
+	params:add{
+		id = 'touch_type',
+		name = 'touch control',
+		type = 'option',
+		labels = {
+			'direct',
+			'rate'
+		},
+		action = function(value)
+			-- TODO!
+		end
+	}
+	-- TODO: in 'direct' mode, you can sync all four
+	-- -- use a sync toggle, slew up/down to synced rate
+	--]]
+
+	--[[
+	TODO: possible output types:
+	- crow CV rate
+	- crow CV pos (a, b, c, d)
+	- crow CV map value (p)
+	- ...additional, multi-dimensional map values?
+	- TT events
+	- MIDI events: notes, chords
+	- crow triggers
+	- softcut loops!!
+
+	TODO: 'recorder' modes:
+	- softcut, duh
+	- MIDI recorder
+	- CV recorder
+	]]
 
 	for r = 1, 4 do
 		local rover = rovers[r]
@@ -317,4 +424,5 @@ function cleanup()
 	if rover_clock ~= nil then
 		rover_clock:stop()
 	end
+	softcut.poll_stop_phase()
 end

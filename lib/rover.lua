@@ -1,6 +1,5 @@
 local Map = include 'lib/map'
-
-local rate = 30
+local SugarCube = include 'lib/sugarcube'
 
 local tau = math.pi * 2
 local qpi = math.pi / 4
@@ -66,6 +65,8 @@ function Rover.new()
 	r.point_distance = 0
 	r.point_highlight = Integrator.new(0.9, 1)
 	r.highlight_point = r.map.points[1]
+	r.cut = SugarCube.new()
+	-- TODO: set loop points
 	r.hold = 0
 	r.values = {
 		a = 0,
@@ -104,6 +105,8 @@ function Rover:step()
 	end
 	self.point_highlight:step()
 	self.rate = self.drift.value * math.max(0, self.drift_amount) + self.drive.value * math.pow(1 + math.max(0, -self.drift_amount), self.drift.value)
+	self.cut.rate = self.rate * rate
+	-- TODO: set position based on softcut poll, if softcut-ing
 	self.disposition = (self.disposition + self.rate) % tau
 	local div_rate = self.rate / self.div
 	self.position = (self.position + div_rate) % tau
