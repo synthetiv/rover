@@ -43,7 +43,7 @@ function Integrator:set_weight(w)
 		-- set sensitivity such that the area under the integrator's impulse response from 0 (initial
 		-- impulse) to `rate` steps (1 second) will be 1.0 for any value of `w`
 		local logw = math.log(w)
-		self.sensitivity = logw / (math.pow(w, rate) - w + logw)
+		self.sensitivity = logw / (math.pow(w, step_rate) - w + logw)
 	end
 end
 
@@ -67,7 +67,7 @@ function Rover.new()
 	r.highlight_point = r.map.points[1]
 	-- TODO: what's going on with rovers 3-4?
 	r.cut = SugarCube.new()
-	r.cut.rate_slew_time = 15/rate
+	r.cut.rate_slew_time = 15 / step_rate -- 15-step slew time is arbitrary, but seems to sound fine
 	-- TODO: handle jumps around 0.0 which must (?) be caused by loop point fades
 	r.cut.on_poll = function(self)
 		r.position = self._position
@@ -113,7 +113,7 @@ function Rover:step()
 	self.rate = self.drift.value * math.max(0, drift_cubed) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -drift_cubed))
 	self.disposition = (self.disposition + self.rate) % tau
 	local div_rate = self.rate / self.div
-	self.cut.rate = div_rate * rate
+	self.cut.rate = div_rate * step_rate
 	-- TODO: is there a better (less potentially jitter-prone) way to do this when synced to softcut?
 	self.position = (self.position + div_rate) % tau
 	self.values.a = math.cos(self.position - qpi) * 0.5 + 0.5

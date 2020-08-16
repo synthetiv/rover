@@ -1,6 +1,6 @@
 -- rovers
 
-rate = 30
+step_rate = 30
 
 Rover = include 'lib/rover'
 
@@ -292,11 +292,11 @@ function init()
 
 	crow.clear()
 	for o = 1, 4 do
-		crow.output[o].slew = 1/rate
+		crow.output[o].slew = 1 / step_rate
 	end
 
 	rover_clock = metro.init{
-		time = 1/rate,
+		time = 1 / step_rate,
 		event = tick
 	}
 
