@@ -109,7 +109,8 @@ function Rover:step()
 		self.drive:step()
 	end
 	self.point_highlight:step()
-	self.rate = self.drift.value * math.max(0, self.drift_amount) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -self.drift_amount))
+	local drift_cubed = self.drift_amount * self.drift_amount * self.drift_amount
+	self.rate = self.drift.value * math.max(0, drift_cubed) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -drift_cubed))
 	self.disposition = (self.disposition + self.rate) % tau
 	local div_rate = self.rate / self.div
 	self.cut.rate = div_rate * rate
