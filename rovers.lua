@@ -10,6 +10,7 @@ a = arc.connect()
 g = grid.connect()
 
 tau = math.pi * 2
+knob_max = math.pi * 3 / 4
 
 arc_values = { {}, {}, {}, {} }
 rovers = {}
@@ -21,13 +22,14 @@ for r = 1, 4 do
 	rovers[r].on_point_cross = function(self, v)
 		crow.ii.tt.script_v(r, v * 5)
 	end
+	rovers[r].cut.loop_start = (r - 1) * 7 + 1
+	rovers[r].cut.loop_end = (r - 1) * 7 + 1 + tau
 	held_keys[r] = {
 		div = false,
 		drift = false,
 		map = false,
 		map_edit = false,
-		play = false,
-		rec = false
+		cut_momentary = false
 	}
 	cursors[r] = 0
 	cursor_ps[r] = 1
@@ -100,7 +102,7 @@ function tick()
 		if held_keys.map then
 			if held_keys.map_edit then
 				local point = rover.map.points[cursor_ps[r]]
-				a_spiral(r, point.o * tau / 3, 0.2, 0.8)
+				a_spiral(r, point.o * knob_max, 0.2, 0.8)
 			else
 				local cursor = cursors[r]
 				local cursor_p = cursor_ps[r]
@@ -113,7 +115,7 @@ function tick()
 				a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
 			end
 		elseif held_keys.drift then
-			a_spiral(r, rover.drift_amount * math.pi, 0.2, 0.8)
+			a_spiral(r, rover.drift_amount * knob_max, 0.2, 0.8)
 		elseif held_keys.div then
 			local div = params:get(string.format('rover_%d_div', r))
 			div = math.floor(div + 0.5)
@@ -168,17 +170,8 @@ function tick()
 		end
 
 		local cut = rover.cut
-		if cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB then
-			g:led(gx + 1, 8, 6)
-		else
-			g:led(gx + 1, 8, 2)
-		end
-		if cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB then
-			g:led(gx + 2, 8, 6)
-		else
-			g:led(gx + 2, 8, 2)
-		end
-		g:led(gx + 3, 8, 2)
+		g:led(gx + 1, 8, (cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB) and 6 or 2)
+		g:led(gx + 2, 8, (cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB) and 6 or 2)
 	end
 	a_refresh()
 	g:refresh()
@@ -195,15 +188,6 @@ function a.delta(r, d)
 	local now = util.time()
 	local diff = now - arc_time[r]
 	arc_time[r] = now
-	if diff < 0.005 then
-		d = d*6
-	elseif diff < 0.01 then
-		d = d*4
-	elseif diff < 0.02 then
-		d = d*3
-	elseif diff < 0.03 then
-		d = d*2
-	end
 	local held_keys = held_keys[r]
 	local rover = rovers[r]
 	if held_keys.map then
@@ -211,18 +195,29 @@ function a.delta(r, d)
 		if held_keys.map_edit then
 			local point = rover.map.points[cursor_ps[r]]
 			cursor = point.i
-			point.o = util.clamp(point.o + d * 0.001, -1, 1)
+			point.o = util.clamp(point.o + d / 384, -1, 1)
 		else
-			cursor = (cursor + d * 0.002) % tau
+			cursor = (cursor + d / 163) % tau
 			local o, p = rover.map:read(cursor)
 			cursor_ps[r] = p
 		end
 		cursors[r] = cursor
 	elseif held_keys.drift then
-		rover.drift_amount = rover.drift_amount + d * 0.001
+		rover.drift_amount = rover.drift_amount + d / 384
 	elseif held_keys.div then
-		params:delta(string.format('rover_%d_div', r), d * 0.02)
+		-- TODO: set quant on controlspec
+		params:delta(string.format('rover_%d_div', r), d * 0.06)
 	else
+		-- TODO: tune acceleration response
+		if diff < 0.005 then
+			d = d*6
+		elseif diff < 0.01 then
+			d = d*4
+		elseif diff < 0.02 then
+			d = d*3
+		elseif diff < 0.03 then
+			d = d*2
+		end
 		rover:nudge(d)
 	end
 	screen.ping()
@@ -260,32 +255,34 @@ function g.key(x, y, z)
 		rover.map:delete(cursors[r])
 		local o, p = rover.map:read(cursors[r])
 		cursor_ps[r] = p
+	elseif rx == 1 and y == 8 then
+		held_keys.cut_momentary = z == 1
 	elseif rx == 2 and y == 8 then
-		held_keys.play = z == 1
 		local cut = rover.cut
-		if z == 1 then
-			if held_keys.rec then
+		if z == 1 or held_keys.cut_momentary then
+			if cut.state == cut.state_RECORD then
 				cut:overdub()
+			elseif cut.state == cut.state_PLAY then
+				cut:mute()
+			elseif cut.state == cut.state_OVERDUB then
+				cut:record()
 			else
 				cut:play()
 			end
 		end
 	elseif rx == 3 and y == 8 then
-		held_keys.rec = z == 1
 		local cut = rover.cut
-		if z == 1 then
-			if cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB then
+		if z == 1 or held_keys.cut_momentary then
+			if cut.state == cut.state_PLAY then
+				cut:overdub()
+			elseif cut.state == cut.state_RECORD then
+				cut:mute()
+			elseif cut.state == cut.state_OVERDUB then
 				cut:play()
 			else
-				if held_keys.play then
-					cut:overdub()
-				else
-					cut:record()
-				end
+				cut:record()
 			end
 		end
-	elseif rx == 4 and y == 8 and z == 1 then
-		rover.cut:stop()
 	end
 	-- TODO: nudge drive using far left + right buttons
 	-- ...and adjust nudge force by holding nudge buttons + touching arc?
@@ -305,6 +302,7 @@ function init()
 
 	for r = 1, 4 do
 		rovers[r].cut:init()
+		rovers[r].cut:mute()
 	end
 	softcut.poll_start_phase()
 

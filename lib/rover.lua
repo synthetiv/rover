@@ -60,14 +60,17 @@ function Rover.new()
 	r.div = 1
 	r.disposition = 0
 	r.position = 0
+	r.last_position = 0
 	r.map = Map.new()
 	r.p = 1
-	r.point_distance = 0
 	r.point_highlight = Integrator.new(0.9, 1)
 	r.highlight_point = r.map.points[1]
+	-- TODO: what's going on with rovers 3-4?
 	r.cut = SugarCube.new()
+	r.cut.rate_slew_time = 15/rate
+	-- TODO: handle jumps around 0.0 which must (?) be caused by loop point fades
 	r.cut.on_poll = function(self)
-		r.position = self._position - self._loop_start
+		r.position = self._position
 	end
 	r.hold = 0
 	r.values = {
@@ -109,8 +112,9 @@ function Rover:step()
 	self.rate = self.drift.value * math.max(0, self.drift_amount) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -self.drift_amount))
 	self.cut.rate = self.rate * rate
 	self.disposition = (self.disposition + self.rate) % tau
-	local div_rate = self.rate / self.div
-	self.position = (self.position + div_rate) % tau
+	-- TODO: check whether synced to softcut
+	-- self.position = self.cut._position -- TODO: interpolate
+	self.position = (self.position + self.rate / self.div) % tau
 	self.values.a = math.cos(self.position - qpi) * 0.5 + 0.5
 	self.values.b = math.sin(self.position - qpi) * 0.5 + 0.5
 	self.values.c = 1 - self.values.a
@@ -118,18 +122,27 @@ function Rover:step()
 
 	self.values.p, self.p = self.map:read(self.position)
 	local point = self.map.points[self.p]
-	local distance = self.position - point.i
-	local d2 = self.position - tau - point.i
-	if math.abs(d2) < math.abs(distance) then
-		distance = d2
+
+	-- check for zero crossings
+	-- this will alias/break if self.rate > math.pi, but like... that'd be really fast
+	local distance = self.position - self.last_position
+	if distance > math.pi then
+		distance = distance - tau
+	elseif distance < -math.pi then
+		distance = distance + tau
 	end
-	-- TODO: not firing reliably with softcut + no point at 0.0
-	if (self.position >= point.i and self.position - div_rate < point.i) or (self.position <= point.i and self.position - div_rate > point.i) or (self.position <= point.i + tau and self.position - div_rate > point.i + tau) or (self.position >= point.i - tau and self.position - div_rate < point.i - tau) then
+
+	if (self.position >= point.i and self.position - distance < point.i)
+	or (self.position >= point.i - tau and self.position - distance < point.i - tau)
+	or (self.position <= point.i and self.position - distance > point.i)
+	or (self.position <= point.i + tau and self.position - distance > point.i + tau)
+	then
 		self.point_highlight.value = 1
 		self.highlight_point = point
 		self:on_point_cross(point.o)
 	end
-	self.point_distance = distance
+
+	self.last_position = self.position
 end
 
 function Rover:on_point_cross() end
