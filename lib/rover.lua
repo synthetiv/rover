@@ -55,7 +55,7 @@ function Rover.new()
 	r.noise = Integrator.new(0.3)
 	r.drift = Integrator.new(0.9)
 	r.drive = Integrator.new(1, 0.0001)
-	r.drift_amount = 0.0 -- bipolar; positive is linear, negative is exponential
+	r.drift_amount = -0.15 -- bipolar; positive is linear, negative is exponential
 	r.rate = 0
 	r.div = 1
 	r.disposition = 0
