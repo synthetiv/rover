@@ -110,11 +110,11 @@ function Rover:step()
 	end
 	self.point_highlight:step()
 	self.rate = self.drift.value * math.max(0, self.drift_amount) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -self.drift_amount))
-	self.cut.rate = self.rate * rate
 	self.disposition = (self.disposition + self.rate) % tau
-	-- TODO: check whether synced to softcut
-	-- self.position = self.cut._position -- TODO: interpolate
-	self.position = (self.position + self.rate / self.div) % tau
+	local div_rate = self.rate / self.div
+	self.cut.rate = div_rate * rate
+	-- TODO: is there a better (less potentially jitter-prone) way to do this when synced to softcut?
+	self.position = (self.position + div_rate) % tau
 	self.values.a = math.cos(self.position - qpi) * 0.5 + 0.5
 	self.values.b = math.sin(self.position - qpi) * 0.5 + 0.5
 	self.values.c = 1 - self.values.a
