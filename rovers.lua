@@ -29,9 +29,17 @@ for r = 1, 4 do
 	cursor_ps[r] = 1
 end
 
+function led_blend(a, b)
+	return 1 - ((1 - a) * (1 - b))
+end
+
+function led_blend_15(a, b)
+	return math.floor(led_blend(a, b) * 15 + 0.5)
+end
+
 function a_blend(r, x, value)
 	x = math.floor(x + 0.5) % 64 + 1
-	arc_values[r][x] = 1 - ((1 - arc_values[r][x]) * (1 - value))
+	arc_values[r][x] = led_blend(arc_values[r][x], value)
 end
 
 function a_notch(r, angle, width, level)
@@ -147,12 +155,12 @@ function tick()
 		-- control drift amount, maybe other factors (inertias? noise amplitude...? maybe macro controls with 'weight' controlling amplitude + inertia inversely)
 
 		if held_keys.map then
-			g:led(gx, 6, 10)
-			g:led(gx + 1, 6, held_keys.map_edit and 10 or 2)
+			g:led(gx, 6, led_blend_15(0.25, math.abs(rover.values.p) * 0.7))
+			g:led(gx + 1, 6, led_blend_15(held_keys.map_edit and 0.25 or 0.15, math.abs(rover.map.points[cursor_ps[r]].o) * 0.7))
 			g:led(gx + 2, 6, 2)
 			g:led(gx + 3, 6, 2)
 		else
-			g:led(gx, 6, 2)
+			g:led(gx, 6, led_blend_15(0.15, math.abs(rover.values.p)))
 		end
 	end
 	a_refresh()
@@ -186,7 +194,7 @@ function a.delta(r, d)
 		if held_keys.map_edit then
 			local point = rover.map.points[cursor_ps[r]]
 			cursor = point.i
-			point.o = util.clamp(point.o + d * 0.001, -math.pi, math.pi)
+			point.o = util.clamp(point.o + d * 0.001, -1, 1)
 		else
 			cursor = (cursor + d * 0.002) % tau
 			local o, p = rover.map:read(cursor)
