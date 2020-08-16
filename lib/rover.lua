@@ -24,18 +24,15 @@ function Integrator:add(v)
 	self.value = self.value + v * self.sensitivity
 end
 
-function Integrator:step(v, damp)
+function Integrator:step(v)
 	self.value = self.value * self.inertia
 	if v ~= nil then
 		self:add(v)
 	end
-	if damp ~= nil then
-		self.value = self.value * damp
-	end
 end
 
-function Integrator:dampen(f)
-	self.value = self.value * f
+function Integrator:damp(d)
+	self.value = self.value * self.inertia * d
 end
 
 function Integrator:set_weight(w)
@@ -87,7 +84,6 @@ function Rover:nudge(delta)
 end
 
 function Rover:step()
-	local damp = 1
 	if self.hold == 4 then
 		damp = 0.1
 	elseif self.hold == 3 then
@@ -97,9 +93,15 @@ function Rover:step()
 	elseif self.hold == 1 then
 		damp = 0.95
 	end
-	self.noise:step((math.random() - 0.5), damp)
-	self.drift:step(self.noise.value, damp)
-	self.drive:step(nil, damp)
+	if self.hold > 0 then
+		self.noise:damp(damp)
+		self.drift:damp(damp)
+		self.drive:damp(damp)
+	else
+		self.noise:step(math.random() - 0.5)
+		self.drift:step(self.noise.value, damp)
+		self.drive:step()
+	end
 	self.point_highlight:step()
 	self.rate = self.drift.value * math.max(0, self.drift_amount) + self.drive.value * math.pow(1 + math.max(0, -self.drift_amount), self.drift.value)
 	self.disposition = (self.disposition + self.rate) % tau
