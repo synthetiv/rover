@@ -25,7 +25,11 @@ function Path:read(i)
 	local upper_p = lower_p % self.count + 1
 	local upper_i = self.points[upper_p].i
 	if upper_i <= lower_i then -- handle segment that crosses over i=2pi back to i=0
-		upper_i = upper_i + tau
+		if i > upper_i then
+			upper_i = upper_i + tau
+		else
+			lower_i = lower_i - tau
+		end
 	end
 	local segment_size = upper_i - lower_i
 	local lower_distance = math.abs(lower_i - i)

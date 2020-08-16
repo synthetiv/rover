@@ -38,7 +38,7 @@ function SugarCube.new(buffer)
 		_loop_end = 4,
 		_position = 1,
 		_rec_level = 1,
-		_dub_level = 1,
+		_dub_level = util.dbamp(-1),
 		_play_level = 1,
 		_fade_time = 0.2,
 		_rate = 0,
