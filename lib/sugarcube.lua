@@ -77,11 +77,13 @@ function SugarCube:init()
 	sc.phase_offset(v, -self._loop_start)
 	sc.rec(v, 1)
 	sc.play(v, 1)
-	sc.filter_dry(v, 1);
-	sc.filter_fc(v, 0);
-	sc.filter_lp(v, 0);
-	sc.filter_bp(v, 0);
-	sc.filter_rq(v, 0);
+	sc.pre_filter_dry(v, 1);
+	sc.pre_filter_fc(v, 20);
+	sc.pre_filter_rq(v, 1.5);
+	sc.pre_filter_lp(v, 0);
+	sc.pre_filter_hp(v, 0);
+	sc.pre_filter_bp(v, 0);
+	sc.pre_filter_br(v, 0);
 end
 
 function SugarCube:stop()
