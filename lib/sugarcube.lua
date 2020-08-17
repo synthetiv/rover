@@ -246,6 +246,13 @@ end
 
 function SugarCube.setters:fade_time(value)
 	sc.fade_time(self.voice, value)
+	sc.pan_slew_time(self.voice, value)
+	sc.level_slew_time(self.voice, value)
+	sc.recpre_slew_time(self.voice, value)
+	if self.rate < 0 then
+		sc.loop_start(self.voice, self.loop_start + value)
+		sc.loop_end(self.voice, self.loop_end + value)
+	end
 end
 
 function SugarCube.setters:rate_slew_time(value)
