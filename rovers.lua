@@ -37,6 +37,12 @@ for r = 1, 4 do
 	}
 end
 
+screen_tau = 128 / tau
+map_shift = false
+map_cursor = 0
+map_cursor_p = 1
+screen_rover = 1
+
 function has_held_key(r)
 	local k = held_keys[r]
 	if k.div or k.drift_weight or k.drift_amount or k.level or k.pan or k.cutoff or k.resonance then
@@ -313,6 +319,8 @@ function a.delta(r, d)
 	if held_keys.resonance then
 		-- TODO
 	end
+
+	screen_rover = r
 end
 
 function g.key(x, y, z)
@@ -376,6 +384,7 @@ function g.key(x, y, z)
 			held_keys.resonance = z == 1
 		end
 	end
+	screen_rover = r
 end
 
 function init()
@@ -484,12 +493,138 @@ function init()
 end
 
 function key(k, z)
-	-- TODO: edit map
+	local rover = rovers[screen_rover]
+	if k == 1 then
+		map_shift = z == 1
+	elseif k == 2 then
+		if z == 1 then
+			rover.map:delete(map_cursor)
+			local _, p = rover.map:read(map_cursor)
+			map_cursor_p = p
+		end
+	elseif k == 3 then
+		if z == 1 then
+			rover.map:insert(map_cursor)
+			local _, p = rover.map:read(map_cursor)
+			map_cursor_p = p
+		end
+	end
+end
+
+function enc(e, d)
+	local rover = rovers[screen_rover]
+	if e == 1 then
+		-- TODO
+	elseif e == 2 then
+		if map_shift then
+			local point = rover.map.points[map_cursor_p]
+			rover.map:move(map_cursor_p, d * 0.03)
+			map_cursor = point.i
+		else
+			map_cursor = (map_cursor + d * 0.03) % tau
+		end
+		local _, p = rover.map:read(map_cursor)
+		map_cursor_p = p
+	elseif e == 3 then
+		local point = rover.map.points[map_cursor_p]
+		map_cursor = point.i
+		point.o = util.clamp(point.o + d * 0.01, -1, 1)
+	end
+end
+
+function get_point_y(o)
+	return 31.5 - o * 31
 end
 
 function redraw()
+	local rover = rovers[screen_rover]
+	local map = rover.map
+	local points = map.points
+	local count = map.count
+
 	screen.clear()
-	-- TODO: draw map
+
+	screen.aa(0)
+	screen.level(1)
+
+	-- x axis
+	screen.move(0, 63.5)
+	screen.line(128, 63.5)
+	screen.stroke()
+	screen.pixel(63, 62)
+	screen.pixel(127, 62)
+	screen.fill()
+	
+	-- y axis
+	screen.move(0.5, 0)
+	screen.line(0.5, 63)
+	screen.stroke()
+	screen.pixel(1, 0)
+	screen.pixel(1, 31)
+	screen.fill()
+
+	-- cursor
+	screen.move(map_cursor * screen_tau, 0)
+	screen.line_rel(0, 64)
+	screen.stroke()
+
+	screen.aa(1)
+
+	local x = rover.highlight_point.i * screen_tau
+	local y = get_point_y(rover.highlight_point.o)
+	local r = 5 / rover.point_highlight.value
+	local l = rover.point_highlight.value ^ 3 * 15
+	if l > 1 then
+		screen.circle(x, y, r)
+		screen.level(math.floor(l))
+		screen.stroke()
+	end
+
+	for p = 0, count + 1 do
+		local point = points[(p - 1) % count + 1]
+		x = point.i * screen_tau
+		y = get_point_y(point.o)
+		if p < 1 then
+			x = x - 128
+		elseif p > count then
+			x = x + 128
+		end
+		screen.line(x, y)
+	end
+	screen.level(2)
+	screen.stroke()
+
+	for p = 1, count do
+		local point = points[p]
+		x = point.i * screen_tau
+		y = get_point_y(point.o)
+		if p ~= map_cursor_p then
+			screen.circle(x, y, 1.5)
+			screen.level(0)
+			screen.fill()
+			screen.circle(x, y, 0.5)
+			screen.level(7)
+			screen.fill()
+		elseif p > count then
+		end
+	end
+
+	local o, p = rover.map:read(rover.position)
+	y = get_point_y(o)
+	screen.circle(rover.position * screen_tau, y, 1)
+	screen.level(15)
+	screen.fill()
+
+	local cursor_point = points[map_cursor_p]
+	x = cursor_point.i * screen_tau
+	y = get_point_y(cursor_point.o)
+	screen.circle(x, y, 2.5)
+	screen.level(0)
+	screen.fill()
+	screen.circle(x, y, 1.5)
+	screen.level(15)
+	screen.fill()
+
 	screen.update()
 end
 

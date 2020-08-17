@@ -66,4 +66,9 @@ function Path:delete(i)
 	end
 end
 
+function Path:move(p, delta)
+	self.points[p].i = (self.points[p].i + delta) % tau
+	table.sort(self.points, sort_points)
+end
+
 return Path
