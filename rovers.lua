@@ -43,6 +43,11 @@ map_cursor = 0
 map_cursor_p = 1
 screen_rover = 1
 
+function update_cursor_p()
+	local _, p = rovers[screen_rover].map:read(map_cursor)
+	map_cursor_p = p
+end
+
 function has_held_key(r)
 	local k = held_keys[r]
 	if k.div or k.drift_weight or k.drift_amount or k.level or k.pan or k.cutoff or k.resonance then
@@ -319,8 +324,6 @@ function a.delta(r, d)
 	if held_keys.resonance then
 		-- TODO
 	end
-
-	screen_rover = r
 end
 
 function g.key(x, y, z)
@@ -385,6 +388,7 @@ function g.key(x, y, z)
 		end
 	end
 	screen_rover = r
+	update_cursor_p()
 end
 
 function init()
@@ -404,6 +408,8 @@ function init()
 		rovers[r].cut:mute()
 	end
 	softcut.poll_start_phase()
+
+	update_cursor_p()
 
 	--[[
 	params:add{
@@ -499,14 +505,12 @@ function key(k, z)
 	elseif k == 2 then
 		if z == 1 then
 			rover.map:delete(map_cursor)
-			local _, p = rover.map:read(map_cursor)
-			map_cursor_p = p
+			update_cursor_p()
 		end
 	elseif k == 3 then
 		if z == 1 then
 			rover.map:insert(map_cursor)
-			local _, p = rover.map:read(map_cursor)
-			map_cursor_p = p
+			update_cursor_p()
 		end
 	end
 end
@@ -523,8 +527,7 @@ function enc(e, d)
 		else
 			map_cursor = (map_cursor + d * 0.03) % tau
 		end
-		local _, p = rover.map:read(map_cursor)
-		map_cursor_p = p
+		update_cursor_p()
 	elseif e == 3 then
 		local point = rover.map.points[map_cursor_p]
 		map_cursor = point.i
@@ -609,7 +612,7 @@ function redraw()
 		end
 	end
 
-	local o, p = rover.map:read(rover.position)
+	local o, p = map:read(rover.position)
 	x = rover.position * screen_tau
 	y = get_point_y(o)
 	screen.circle(x, y, 1)
