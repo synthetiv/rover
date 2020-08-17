@@ -187,40 +187,48 @@ end
 function g.key(x, y, z)
 	local r = math.floor((x - 1) / 4) + 1
 	local rover = rovers[r]
-	local rx = (x - 1) % 4 + 1
-	if (rx == 2 or rx == 3) and (y == 2 or y == 3) then
-		rover.hold = rover.hold + (z == 1 and 1 or -1)
-	elseif rx == 3 and y == 1 then
-		held_keys[r].div = z == 1
-	elseif rx == 3 and y == 4 then
-		held_keys[r].drift_amount = z == 1
-	elseif rx == 2 and y == 4 then
-		held_keys[r].drift_weight = z == 1
-	elseif rx == 1 and y == 7 and z == 1 then
-		local cut = rover.cut
-		if cut.state == cut.state_RECORD then
-			cut:overdub()
-		elseif cut.state == cut.state_PLAY then
-			cut:mute()
-		elseif cut.state == cut.state_OVERDUB then
-			cut:record()
-		else
-			cut:play()
+	local held_keys = held_keys[r]
+	local x = (x - 1) % 4 + 1
+	if y == 1 then
+		if x == 3 then
+			held_keys.div = z == 1
 		end
-	elseif rx == 2 and y == 7 and z == 1 then
-		local cut = rover.cut
-		if cut.state == cut.state_PLAY then
-			cut:overdub()
-		elseif cut.state == cut.state_RECORD then
-			cut:mute()
-		elseif cut.state == cut.state_OVERDUB then
-			cut:play()
-		else
-			cut:record()
+	elseif y == 2 or y == 3 then
+		if x == 2 or x == 3 then
+			rover.hold = rover.hold + (z == 1 and 1 or -1)
+		end
+	elseif y == 4 then
+		if x == 2 then
+			held_keys.drift_weight = z == 1
+		elseif x == 3 then
+			held_keys.drift_amount = z == 1
+		end
+	elseif y == 7 then
+		if z == 1 then
+			local cut = rover.cut
+			if x == 1 then
+				if cut.state == cut.state_RECORD then
+					cut:overdub()
+				elseif cut.state == cut.state_PLAY then
+					cut:mute()
+				elseif cut.state == cut.state_OVERDUB then
+					cut:record()
+				else
+					cut:play()
+				end
+			elseif x == 2 then
+				if cut.state == cut.state_PLAY then
+					cut:overdub()
+				elseif cut.state == cut.state_RECORD then
+					cut:mute()
+				elseif cut.state == cut.state_OVERDUB then
+					cut:play()
+				else
+					cut:record()
+				end
+			end
 		end
 	end
-	-- TODO: nudge drive using far left + right buttons
-	-- ...and adjust nudge force by holding nudge buttons + touching arc?
 end
 
 function init()
