@@ -63,6 +63,7 @@ function SugarCube.new(buffer)
 		rec_level = 1,
 		dub_level = util.dbamp(-1),
 		level = 1,
+		pan = 0,
 		fade_time = 0.01,
 		rate_slew_time = 0.01,
 		rate = 0
@@ -77,12 +78,10 @@ function SugarCube.new(buffer)
 	}
 
 	cube.inputs = Levels.new(cube, 2, 1, function(input, value)
-		print('input setter', input, cube.voice, value)
 		sc.level_input_cut(input, cube.voice, value)
 	end)
 
 	cube.sends = Levels.new(cube, 6, 0, function(v2, value)
-		print('cut-cut setter', cube.voice, v2, value)
 		sc.level_cut_cut(cube.voice, v2, value * cube.level)
 	end)
 
@@ -236,12 +235,16 @@ function SugarCube.setters:dub_level(value)
 end
 
 function SugarCube.setters:level(value)
-	if self.state == state_PLAY or self.state.state == state_OVERDUB then
+	if self.state == state_PLAY or self.state == state_OVERDUB then
 		sc.level(self.voice, value)
 	end
 	for v = 1, 6 do
 		sc.level_cut_cut(self.voice, v, self.sends[v] * value)
 	end
+end
+
+function SugarCube.setters:pan(value)
+	sc.pan(self.voice, value)
 end
 
 function SugarCube.setters:fade_time(value)

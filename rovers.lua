@@ -12,6 +12,7 @@ g = grid.connect()
 tau = math.pi * 2
 seg_per_rad = 64 / tau
 knob_max = math.pi * 3 / 4
+knob_max_2x = math.pi * 3 / 2
 
 arc_values = { {}, {}, {}, {} }
 rovers = {}
@@ -26,8 +27,32 @@ for r = 1, 4 do
 	held_keys[r] = {
 		div = false,
 		drift_weight = false,
-		drift_amount = false
+		drift_amount = false,
+		input_cut = { false, false, false, false },
+		input = { false, false },
+		level = false,
+		pan = false,
+		cutoff = false,
+		resonance = false
 	}
+end
+
+function has_held_key(r)
+	local k = held_keys[r]
+	if k.div or k.drift_weight or k.drift_amount or k.level or k.pan or k.cutoff or k.resonance then
+		return true
+	end
+	for v = 1, 4 do
+		if k.input_cut[v] then
+			return true
+		end
+	end
+	for i = 1, 2 do
+		if k.input[i] then
+			return true
+		end
+	end
+	return false
 end
 
 function led_blend(a, b)
@@ -61,13 +86,21 @@ function a_notch(r, angle, width, level)
 	end
 end
 
-function a_spiral(r, start, finish, level, finish_level)
+function a_spiral(r, start, length, level, finish_level)
+	local finish = math.floor((start + length) * seg_per_rad + 0.5)
 	start = math.floor(start * seg_per_rad + 0.5)
-	finish = math.floor(finish * seg_per_rad + 0.5)
 	local increment = finish < start and -1 or 1
 	for x = start, finish, increment do
 		a_blend(r, x, x == finish and finish_level or level)
 	end
+end
+
+function a_bipolar(r, value)
+	a_spiral(r, 0, value * knob_max, 0.2, 0.7)
+end
+
+function a_unipolar(r, value)
+	a_spiral(r, -knob_max, value * knob_max_2x, 0.2, 0.7)
 end
 
 function a_refresh()
@@ -91,18 +124,33 @@ function tick()
 
 		local held_keys = held_keys[r]
 		local rover = rovers[r]
+		local cut = rover.cut
 		rover:step()
 
 		crow.output[r].volts = (rover.values.d - 0.5) * 5
 
-		a_all(r, rover.point_highlight.value * rover.point_highlight.value * 0.3)
+		if has_held_key(r) then
+			a_all(r, 0)
+			a_notch(r, rover.position, 1.5, 0.3)
+		else
+			a_all(r, rover.point_highlight.value * rover.point_highlight.value * 0.3)
+			a_notch(r, rover.position, 2, 1)
+			if rover.div ~= 1 then
+				a_notch(r, rover.disposition, 1.5, 0.3)
+			end
+			a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
+		end
 
 		if held_keys.drift_amount then
-			a_spiral(r, 0, rover.drift_amount * knob_max, 0.2, 0.8)
-		elseif held_keys.drift_weight then
-			a_spiral(r, -knob_max, knob_max, 0.15, 0.1)
-			a_spiral(r, -knob_max, (rover.drift_weight * 2 - 1) * knob_max, 0.05, 0.8)
-		elseif held_keys.div then
+			a_bipolar(r, rover.drift_amount)
+		end
+
+		if held_keys.drift_weight then
+			-- a_spiral(r, -knob_max, knob_max, 0.15, 0.1) -- TODO
+			a_unipolar(r, rover.drift_weight)
+		end
+		
+		if held_keys.div then
 			local div = params:get(string.format('rover_%d_div', r))
 			div = math.floor(div + 0.5)
 			local start = 0
@@ -116,14 +164,40 @@ function tick()
 				a_notch(r, start + d * tau / div, 1, 0.5)
 			end
 			a_notch(r, rover.position, 2, 0.3)
-		else
-			a_notch(r, rover.position, 2, 1)
-			if rover.div ~= 1 then
-				a_notch(r, rover.disposition, 1.5, 0.3)
-			end
-			a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
 		end
 
+		for v = 1, 4 do
+			if held_keys.input_cut[v] then
+				if v == r then
+					a_unipolar(r, cut.dub_level)
+				else
+					a_unipolar(r, rovers[v].cut.sends[r])
+				end
+			end
+		end
+
+		for i = 1, 2 do
+			if held_keys.input[i] then
+				a_unipolar(r, cut.inputs[i])
+			end
+		end
+
+		if held_keys.level then
+			a_unipolar(r, cut.level)
+		end
+
+		if held_keys.pan then
+			a_bipolar(r, cut.pan)
+		end
+			
+		if held_keys.cutoff then
+			-- TODO:
+		end
+
+		if held_keys.resonance then
+			-- TODO
+		end
+		
 		local gx = (r - 1) * 4 + 1
 
 		g:led(gx + 2, 1, held_keys.div and 10 or 2)
@@ -135,12 +209,25 @@ function tick()
 		g:led(gx + 1, 2, math.floor(hold_level * rover.values.d * rover.values.d * 2 + 0.5))
 
 		local drift_level = rover.drift.value * rover.drift_amount * 100
-		g:led(gx + 2, 4, led_blend_15(math.max(0, drift_level * 0.1) ^ 2, 0.15))
-		g:led(gx + 1, 4, led_blend_15(math.max(0, -drift_level * 0.1) ^ 2, 0.15))
+		g:led(gx + 2, 4, led_blend_15(math.max(0, drift_level * 0.05) ^ 2, 0.15))
+		g:led(gx + 1, 4, led_blend_15(math.max(0, -drift_level * 0.05) ^ 2, 0.15))
 
 		local cut = rover.cut
+		for v = 1, 4 do
+			if v == r then
+				g:led(gx + v - 1, 6, math.floor(cut.dub_level ^ 2 * 4 + 0.5))
+			else
+				g:led(gx + v - 1, 6, math.floor(rovers[v].cut.sends[r] ^ 2 * 4 + 0.5))
+			end
+		end
 		g:led(gx, 7, (cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB) and 6 or 2)
 		g:led(gx + 1, 7, (cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB) and 6 or 2)
+		for i = 1, 2 do
+			g:led(gx + i + 1, 7, math.floor(cut.inputs[i] ^ 2 * 4 + 0.5))
+		end
+		g:led(gx, 8, math.floor(cut.level ^ 2 * 4 + 0.5))
+		g:led(gx + 1, 8, math.floor(cut.pan ^ 2 * 4 + 0.5))
+		-- TODO: filters
 	end
 	a_refresh()
 	g:refresh()
@@ -153,23 +240,15 @@ for r = 1, 4 do
 end
 
 function a.delta(r, d)
-	-- acceleration logic ripped from norns/lua/core/encoders.lua
-	local now = util.time()
-	local diff = now - arc_time[r]
-	arc_time[r] = now
-	local held_keys = held_keys[r]
+
 	local rover = rovers[r]
-	if held_keys.drift_amount then
-		rover.drift_amount = rover.drift_amount + d / 384
-	elseif held_keys.drift_weight then
-		rover.drift_weight = util.clamp(rover.drift_weight + d / 768, 0, 0.99)
-		rover.noise:set_weight(rover.drift_weight)
-		rover.drift:set_weight(rover.drift_weight)
-	elseif held_keys.div then
-		-- TODO: set quant on controlspec
-		params:delta(string.format('rover_%d_div', r), d * 0.06)
-	else
+
+	if not has_held_key(r) then
+		-- acceleration logic ripped from norns/lua/core/encoders.lua
 		-- TODO: tune acceleration response
+		local now = util.time()
+		local diff = now - arc_time[r]
+		arc_time[r] = now
 		if diff < 0.005 then
 			d = d*6
 		elseif diff < 0.01 then
@@ -180,8 +259,60 @@ function a.delta(r, d)
 			d = d*2
 		end
 		rover:nudge(d)
+		return
 	end
-	screen.ping()
+
+	local held_keys = held_keys[r]
+	local cut = rover.cut
+	local d_bipolar = d / 384
+	local d_unipolar = d / 768
+
+	if held_keys.drift_amount then
+		rover.drift_amount = rover.drift_amount + d_bipolar
+	end
+
+	if held_keys.drift_weight then
+		rover.drift_weight = util.clamp(rover.drift_weight + d_unipolar, 0, 0.99)
+		rover.noise:set_weight(rover.drift_weight)
+		rover.drift:set_weight(rover.drift_weight)
+	end
+
+	if held_keys.div then
+		-- TODO: set quant on controlspec
+		params:delta(string.format('rover_%d_div', r), d * 0.06)
+	end
+
+	for v = 1, 4 do
+		if held_keys.input_cut[v] then
+			if v == r then
+				cut.dub_level = util.clamp(cut.dub_level + d_unipolar, 0, 1)
+			else
+				rovers[v].cut.sends[r] = util.clamp(rovers[v].cut.sends[r] + d_unipolar, 0, 1)
+			end
+		end
+	end
+
+	for i = 1, 2 do
+		if held_keys.input[i] then
+			cut.inputs[i] = util.clamp(cut.inputs[i] + d_unipolar, 0, 1)
+		end
+	end
+
+	if held_keys.level then
+		cut.level = util.clamp(cut.level + d_unipolar, 0, 1)
+	end
+
+	if held_keys.pan then
+		cut.pan = util.clamp(cut.pan + d_bipolar, -1, 1)
+	end
+
+	if held_keys.cutoff then
+		-- TODO
+	end
+
+	if held_keys.resonance then
+		-- TODO
+	end
 end
 
 function g.key(x, y, z)
@@ -203,10 +334,12 @@ function g.key(x, y, z)
 		elseif x == 3 then
 			held_keys.drift_amount = z == 1
 		end
+	elseif y == 6 then
+		held_keys.input_cut[x] = z == 1
 	elseif y == 7 then
-		if z == 1 then
-			local cut = rover.cut
-			if x == 1 then
+		local cut = rover.cut
+		if y == 7 then
+			if x == 1 and z == 1 then
 				if cut.state == cut.state_RECORD then
 					cut:overdub()
 				elseif cut.state == cut.state_PLAY then
@@ -216,7 +349,7 @@ function g.key(x, y, z)
 				else
 					cut:play()
 				end
-			elseif x == 2 then
+			elseif x == 2 and z == 1 then
 				if cut.state == cut.state_PLAY then
 					cut:overdub()
 				elseif cut.state == cut.state_RECORD then
@@ -226,7 +359,21 @@ function g.key(x, y, z)
 				else
 					cut:record()
 				end
+			elseif x == 3 then
+				held_keys.input[1] = z == 1
+			elseif x == 4 then
+				held_keys.input[2] = z == 1
 			end
+		end
+	elseif y == 8 then
+		if x == 1 then
+			held_keys.level = z == 1
+		elseif x == 2 then
+			held_keys.pan = z == 1
+		elseif x == 3 then
+			held_keys.cutoff = z == 1
+		elseif x == 4 then
+			held_keys.resonance = z == 1
 		end
 	end
 end
