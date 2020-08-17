@@ -71,7 +71,7 @@ function Rover.new()
 	r.cut.rate_slew_time = 15 / step_rate -- 15-step slew time is arbitrary, but seems to sound fine
 	-- TODO: handle jumps around 0.0 which must (?) be caused by loop point fades
 	r.cut.on_poll = function(self)
-		r.position = self._position
+		r.position = self.position
 	end
 	r.hold = 0
 	r.values = {
