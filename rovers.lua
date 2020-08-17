@@ -16,8 +16,6 @@ knob_max = math.pi * 3 / 4
 arc_values = { {}, {}, {}, {} }
 rovers = {}
 held_keys = {}
-cursors = {}
-cursor_ps = {}
 for r = 1, 4 do
 	rovers[r] = Rover.new()
 	rovers[r].on_point_cross = function(self, v)
@@ -28,13 +26,8 @@ for r = 1, 4 do
 	held_keys[r] = {
 		div = false,
 		drift_weight = false,
-		drift_amount = false,
-		map = false,
-		map_edit = false,
-		cut_momentary = false
+		drift_amount = false
 	}
-	cursors[r] = 0
-	cursor_ps[r] = 1
 end
 
 function led_blend(a, b)
@@ -42,7 +35,7 @@ function led_blend(a, b)
 end
 
 function led_blend_15(a, b)
-	return math.floor(led_blend(a, b) * 15 + 0.5)
+	return util.clamp(math.floor(led_blend(a, b) * 15 + 0.5), 0, 15)
 end
 
 function a_blend(r, x, value)
@@ -100,25 +93,11 @@ function tick()
 		local rover = rovers[r]
 		rover:step()
 
+		crow.output[r].volts = (rover.values.d - 0.5) * 5
+
 		a_all(r, rover.point_highlight.value * rover.point_highlight.value * 0.3)
 
-		if held_keys.map then
-			if held_keys.map_edit then
-				local point = rover.map.points[cursor_ps[r]]
-				a_spiral(r, -knob_max, knob_max, 0.15, 0.1)
-				a_spiral(r, 0, point.o * knob_max, 0.05, 0.8)
-			else
-				local cursor = cursors[r]
-				local cursor_p = cursor_ps[r]
-				a_notch(r, cursor, 1, 0.8)
-				a_notch(r, rover.position, 2, 0.3)
-				local map = rover.map
-				for p, point in ipairs(map.points) do
-					a_notch(r, point.i, 1, p == cursor_p and 0.5 or 0.2)
-				end
-				a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
-			end
-		elseif held_keys.drift_amount then
+		if held_keys.drift_amount then
 			a_spiral(r, 0, rover.drift_amount * knob_max, 0.2, 0.8)
 		elseif held_keys.drift_weight then
 			a_spiral(r, -knob_max, knob_max, 0.15, 0.1)
@@ -146,39 +125,22 @@ function tick()
 		end
 
 		local gx = (r - 1) * 4 + 1
-		g:led(gx + 3, 1, math.floor(rover.values.a * rover.values.a * 10 + 0.5))
-		g:led(gx + 3, 2, math.floor(rover.values.b * rover.values.b * 10 + 0.5))
-		g:led(gx + 2, 2, math.floor(rover.values.c * rover.values.c * 10 + 0.5))
-		g:led(gx + 2, 1, math.floor(rover.values.d * rover.values.d * 10 + 0.5))
 
-		crow.output[r].volts = (rover.values.d - 0.5) * 5
+		g:led(gx + 2, 1, held_keys.div and 10 or 2)
 
-		-- TODO: indicators for noise, drift, drive(?);
+		local hold_level = 5 - rover.hold
+		g:led(gx + 2, 2, math.floor(hold_level * rover.values.a * rover.values.a * 2 + 0.5))
+		g:led(gx + 2, 3, math.floor(hold_level * rover.values.b * rover.values.b * 2 + 0.5))
+		g:led(gx + 1, 3, math.floor(hold_level * rover.values.c * rover.values.c * 2 + 0.5))
+		g:led(gx + 1, 2, math.floor(hold_level * rover.values.d * rover.values.d * 2 + 0.5))
 
 		local drift_level = rover.drift.value * rover.drift_amount * 100
-		-- TODO: square and 'blend' with initial level of 2
-		g:led(gx + 1, 1, math.floor(util.clamp(drift_level, 0, 8) + 2.5))
-		g:led(gx + 1, 2, math.floor(util.clamp(-drift_level, 0, 8) + 2.5))
-
-		--[[
-		local noise_level = rover.noise.value * 50000
-		g:led(gx + 1, 4, math.floor(util.clamp(-noise_level, 0, 10) + 0.5))
-		g:led(gx + 2, 4, math.floor(util.clamp(noise_level, 0, 10) + 0.5))
-		--]]
-		-- control drift amount, maybe other factors (inertias? noise amplitude...? maybe macro controls with 'weight' controlling amplitude + inertia inversely)
-
-		if held_keys.map then
-			g:led(gx, 6, led_blend_15(0.25, math.abs(rover.values.p) * 0.7))
-			g:led(gx + 1, 6, led_blend_15(held_keys.map_edit and 0.25 or 0.15, math.abs(rover.map.points[cursor_ps[r]].o) * 0.7))
-			g:led(gx + 2, 6, 2)
-			g:led(gx + 3, 6, 2)
-		else
-			g:led(gx, 6, led_blend_15(0.15, math.abs(rover.values.p)))
-		end
+		g:led(gx + 2, 4, led_blend_15(math.max(0, drift_level * 0.1) ^ 2, 0.15))
+		g:led(gx + 1, 4, led_blend_15(math.max(0, -drift_level * 0.1) ^ 2, 0.15))
 
 		local cut = rover.cut
-		g:led(gx + 1, 8, (cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB) and 6 or 2)
-		g:led(gx + 2, 8, (cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB) and 6 or 2)
+		g:led(gx, 7, (cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB) and 6 or 2)
+		g:led(gx + 1, 7, (cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB) and 6 or 2)
 	end
 	a_refresh()
 	g:refresh()
@@ -197,19 +159,7 @@ function a.delta(r, d)
 	arc_time[r] = now
 	local held_keys = held_keys[r]
 	local rover = rovers[r]
-	if held_keys.map then
-		local cursor = cursors[r]
-		if held_keys.map_edit then
-			local point = rover.map.points[cursor_ps[r]]
-			cursor = point.i
-			point.o = util.clamp(point.o + d / 384, -1, 1)
-		else
-			cursor = (cursor + d / 163) % tau
-			local o, p = rover.map:read(cursor)
-			cursor_ps[r] = p
-		end
-		cursors[r] = cursor
-	elseif held_keys.drift_amount then
+	if held_keys.drift_amount then
 		rover.drift_amount = rover.drift_amount + d / 384
 	elseif held_keys.drift_weight then
 		rover.drift_weight = util.clamp(rover.drift_weight + d / 768, 0, 0.99)
@@ -238,57 +188,35 @@ function g.key(x, y, z)
 	local r = math.floor((x - 1) / 4) + 1
 	local rover = rovers[r]
 	local rx = (x - 1) % 4 + 1
-	-- if (rx == 2 or rx == 3) and (y == 1 or y == 2) then
-		-- local d = (0.5 - z) * 0.5
-		-- rover.drive.inertia = rover.drive.inertia + d
-	-- end
-	if (rx == 3 or rx == 4) and (y == 1 or y == 2) then
+	if (rx == 2 or rx == 3) and (y == 2 or y == 3) then
 		rover.hold = rover.hold + (z == 1 and 1 or -1)
-	elseif rx == 1 and y == 2 then
+	elseif rx == 3 and y == 1 then
 		held_keys[r].div = z == 1
-	elseif rx == 2 and y == 1 then
+	elseif rx == 3 and y == 4 then
 		held_keys[r].drift_amount = z == 1
-	elseif rx == 2 and y == 2 then
+	elseif rx == 2 and y == 4 then
 		held_keys[r].drift_weight = z == 1
-	elseif rx == 1 and y == 6 then
-		held_keys[r].map = z == 1
-	elseif rx == 2 and y == 6 then
-		held_keys[r].map_edit = z == 1
-	elseif rx == 3 and y == 6 and z == 1 then
-		rover.map:insert(cursors[r])
-		local o, p = rover.map:read(cursors[r])
-		cursor_ps[r] = p
-	elseif rx == 4 and y == 6 and z == 1 then
-		rover.map:delete(cursors[r])
-		local o, p = rover.map:read(cursors[r])
-		cursor_ps[r] = p
-	elseif rx == 1 and y == 8 then
-		held_keys.cut_momentary = z == 1
-	elseif rx == 2 and y == 8 then
+	elseif rx == 1 and y == 7 and z == 1 then
 		local cut = rover.cut
-		if z == 1 or held_keys.cut_momentary then
-			if cut.state == cut.state_RECORD then
-				cut:overdub()
-			elseif cut.state == cut.state_PLAY then
-				cut:mute()
-			elseif cut.state == cut.state_OVERDUB then
-				cut:record()
-			else
-				cut:play()
-			end
+		if cut.state == cut.state_RECORD then
+			cut:overdub()
+		elseif cut.state == cut.state_PLAY then
+			cut:mute()
+		elseif cut.state == cut.state_OVERDUB then
+			cut:record()
+		else
+			cut:play()
 		end
-	elseif rx == 3 and y == 8 then
+	elseif rx == 2 and y == 7 and z == 1 then
 		local cut = rover.cut
-		if z == 1 or held_keys.cut_momentary then
-			if cut.state == cut.state_PLAY then
-				cut:overdub()
-			elseif cut.state == cut.state_RECORD then
-				cut:mute()
-			elseif cut.state == cut.state_OVERDUB then
-				cut:play()
-			else
-				cut:record()
-			end
+		if cut.state == cut.state_PLAY then
+			cut:overdub()
+		elseif cut.state == cut.state_RECORD then
+			cut:mute()
+		elseif cut.state == cut.state_OVERDUB then
+			cut:play()
+		else
+			cut:record()
 		end
 	end
 	-- TODO: nudge drive using far left + right buttons
@@ -401,27 +329,12 @@ function init()
 end
 
 function key(k, z)
-	if k == 1 then
-		-- TODO: stop drift, allow manual scrubbing
-		-- for r = 1, 4 do
-		-- end
-	end
+	-- TODO: edit map
 end
 
 function redraw()
 	screen.clear()
-	for r = 1, 4 do
-		local rover = rovers[r]
-		local x = 23 + (r - 1) * 25
-
-		screen.rect(x - 3, 21, 2, 2)
-		screen.level(math.floor(rover.values.b * rover.values.b * 15 + 0.5))
-		screen.fill()
-
-		screen.rect(x + 3, 43, 2, 2)
-		screen.level(math.floor(rover.values.a * rover.values.a * 15 + 0.5))
-		screen.fill()
-	end
+	-- TODO: draw map
 	screen.update()
 end
 
