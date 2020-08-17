@@ -52,10 +52,11 @@ Rover.__index = Rover
 
 function Rover.new()
 	local r = setmetatable({}, Rover)
-	r.noise = Integrator.new(0.3)
-	r.drift = Integrator.new(0.9)
-	r.drive = Integrator.new(1, 0.0001)
 	r.drift_amount = -0.15 -- bipolar; positive is linear, negative is exponential
+	r.drift_weight = 0.8
+	r.noise = Integrator.new(r.drift_weight)
+	r.drift = Integrator.new(r.drift_weight)
+	r.drive = Integrator.new(1, 0.0001)
 	r.rate = 0
 	r.div = 1
 	r.disposition = 0

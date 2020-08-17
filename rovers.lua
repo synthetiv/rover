@@ -26,7 +26,8 @@ for r = 1, 4 do
 	rovers[r].cut.loop_end = (r - 1) * 7 + 1 + tau
 	held_keys[r] = {
 		div = false,
-		drift = false,
+		drift_weight = false,
+		drift_amount = false,
 		map = false,
 		map_edit = false,
 		cut_momentary = false
@@ -114,8 +115,10 @@ function tick()
 				end
 				a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
 			end
-		elseif held_keys.drift then
+		elseif held_keys.drift_amount then
 			a_spiral(r, rover.drift_amount * knob_max, 0.2, 0.8)
+		elseif held_keys.drift_weight then
+			a_spiral(r, (rover.drift_weight * 2 - 1) * knob_max, 0.2, 0.8)
 		elseif held_keys.div then
 			local div = params:get(string.format('rover_%d_div', r))
 			div = math.floor(div + 0.5)
@@ -139,10 +142,10 @@ function tick()
 		end
 
 		local gx = (r - 1) * 4 + 1
-		g:led(gx + 2, 1, math.floor(rover.values.a * rover.values.a * 10 + 0.5))
-		g:led(gx + 2, 2, math.floor(rover.values.b * rover.values.b * 10 + 0.5))
-		g:led(gx + 1, 2, math.floor(rover.values.c * rover.values.c * 10 + 0.5))
-		g:led(gx + 1, 1, math.floor(rover.values.d * rover.values.d * 10 + 0.5))
+		g:led(gx + 3, 1, math.floor(rover.values.a * rover.values.a * 10 + 0.5))
+		g:led(gx + 3, 2, math.floor(rover.values.b * rover.values.b * 10 + 0.5))
+		g:led(gx + 2, 2, math.floor(rover.values.c * rover.values.c * 10 + 0.5))
+		g:led(gx + 2, 1, math.floor(rover.values.d * rover.values.d * 10 + 0.5))
 
 		crow.output[r].volts = (rover.values.d - 0.5) * 5
 
@@ -150,8 +153,8 @@ function tick()
 
 		local drift_level = rover.drift.value * rover.drift_amount * 100
 		-- TODO: square and 'blend' with initial level of 2
-		g:led(gx + 1, 4, math.floor(util.clamp(-drift_level, 0, 8) + 2.5))
-		g:led(gx + 2, 4, math.floor(util.clamp(drift_level, 0, 8) + 2.5))
+		g:led(gx, 2, math.floor(util.clamp(-drift_level, 0, 8) + 2.5))
+		g:led(gx + 1, 2, math.floor(util.clamp(drift_level, 0, 8) + 2.5))
 
 		--[[
 		local noise_level = rover.noise.value * 50000
@@ -202,8 +205,12 @@ function a.delta(r, d)
 			cursor_ps[r] = p
 		end
 		cursors[r] = cursor
-	elseif held_keys.drift then
+	elseif held_keys.drift_amount then
 		rover.drift_amount = rover.drift_amount + d / 384
+	elseif held_keys.drift_weight then
+		rover.drift_weight = util.clamp(rover.drift_weight + d / 384, 0, 0.99999)
+		rover.noise:set_weight(rover.drift_weight)
+		rover.drift:set_weight(rover.drift_weight)
 	elseif held_keys.div then
 		-- TODO: set quant on controlspec
 		params:delta(string.format('rover_%d_div', r), d * 0.06)
@@ -231,18 +238,14 @@ function g.key(x, y, z)
 		-- local d = (0.5 - z) * 0.5
 		-- rover.drive.inertia = rover.drive.inertia + d
 	-- end
-	if rx == 3 and y == 1 then
-		rover.hold = rover.hold + (z == 1 and 1 or -1)
-	elseif rx == 3 and y == 2 then
-		rover.hold = rover.hold + (z == 1 and 1 or -1)
-	elseif rx == 2 and y == 2 then
+	if (rx == 3 or rx == 4) and (y == 1 or y == 2) then
 		rover.hold = rover.hold + (z == 1 and 1 or -1)
 	elseif rx == 2 and y == 1 then
-		rover.hold = rover.hold + (z == 1 and 1 or -1)
-	elseif (rx == 2 or rx == 3) and y == 3 then
 		held_keys[r].div = z == 1
-	elseif (rx == 2 or rx == 3) and y == 4 then
-		held_keys[r].drift = z == 1
+	elseif rx == 2 and y == 2 then
+		held_keys[r].drift_amount = z == 1
+	elseif rx == 1 and y == 2 then
+		held_keys[r].drift_weight = z == 1
 	elseif rx == 1 and y == 6 then
 		held_keys[r].map = z == 1
 	elseif rx == 2 and y == 6 then
