@@ -599,19 +599,20 @@ function redraw()
 		x = point.i * screen_tau
 		y = get_point_y(point.o)
 		if p ~= map_cursor_p then
-			screen.circle(x, y, 1.5)
+			screen.circle(x, y, 2.2)
 			screen.level(0)
 			screen.fill()
-			screen.circle(x, y, 0.5)
-			screen.level(7)
+			screen.circle(x, y, 0.9)
+			screen.level(9)
 			screen.fill()
 		elseif p > count then
 		end
 	end
 
 	local o, p = rover.map:read(rover.position)
+	x = rover.position * screen_tau
 	y = get_point_y(o)
-	screen.circle(rover.position * screen_tau, y, 1)
+	screen.circle(x, y, 1)
 	screen.level(15)
 	screen.fill()
 
@@ -621,7 +622,7 @@ function redraw()
 	screen.circle(x, y, 2.5)
 	screen.level(0)
 	screen.fill()
-	screen.circle(x, y, 1.5)
+	screen.circle(x, y, 1.2)
 	screen.level(15)
 	screen.fill()
 
