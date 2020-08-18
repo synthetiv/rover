@@ -219,24 +219,22 @@ function tick()
 		
 		local gx = (r - 1) * 4 + 1
 
-		g:led(gx + 2, 1, held_keys.div and 10 or 2)
-
 		local hold_level = (5 - rover.hold) / 10
-		g:led(gx + 2, 2, led_blend_15(((rover.values.a + 1) * hold_level) ^ 2, 0.09))
-		g:led(gx + 2, 3, led_blend_15(((rover.values.b + 1) * hold_level) ^ 2, 0.09))
-		g:led(gx + 1, 3, led_blend_15(((rover.values.c + 1) * hold_level) ^ 2, 0.09))
-		g:led(gx + 1, 2, led_blend_15(((rover.values.d + 1) * hold_level) ^ 2, 0.09))
+		g:led(gx + 1, 1, led_blend_15(((rover.values.a + 1) * hold_level) ^ 2, 0.09))
+		g:led(gx + 1, 2, led_blend_15(((rover.values.b + 1) * hold_level) ^ 2, 0.09))
+		g:led(gx, 2, led_blend_15(((rover.values.c + 1) * hold_level) ^ 2, 0.09))
+		g:led(gx, 1, led_blend_15(((rover.values.d + 1) * hold_level) ^ 2, 0.09))
+
+		g:led(gx + 2, 2, held_keys.div and 10 or 2)
 
 		local drift_level = rover.drift.value * rover.drift_amount * 100
-		g:led(gx + 2, 4, led_blend_15(math.max(0, drift_level * 0.05) ^ 2, 0.15))
-		g:led(gx + 1, 4, led_blend_15(math.max(0, -drift_level * 0.05) ^ 2, 0.15))
+		g:led(gx + 1, 3, led_blend_15(math.max(0, drift_level * 0.05) ^ 2, 0.15))
+		g:led(gx, 3, led_blend_15(math.max(0, -drift_level * 0.05) ^ 2, 0.15))
 
 		local map_level = rover.values.p ^ 2 * (rover.values.p < 0 and -1 or 1)
 		local map_base = (rover.point_highlight.value * 0.4 + 0.3) ^ 2
-		g:led(gx + 2, 5, led_blend_15(math.max(0, map_level), map_base))
-		g:led(gx + 1, 5, led_blend_15(math.max(0, -map_level), map_base))
-		g:led(gx, 5, held_keys.map_a and 4 or 1)
-		g:led(gx + 3, 5, held_keys.map_b and 4 or 1)
+		g:led(gx + 1, 4, led_blend_15(math.max(0, map_level), map_base))
+		g:led(gx, 4, led_blend_15(math.max(0, -map_level), map_base))
 
 		local cut = rover.cut
 		for v = 1, 4 do
@@ -346,24 +344,22 @@ function g.key(x, y, z)
 	local rover = rovers[r]
 	local held_keys = held_keys[r]
 	local x = (x - 1) % 4 + 1
-	if y == 1 then
-		if x == 3 then
+	if y == 1 or y == 2 then
+		if x == 1 or x == 2 then
+			rover.hold = rover.hold + (z == 1 and 1 or -1)
+		elseif y == 2 and x == 3 then
 			held_keys.div = z == 1
 		end
-	elseif y == 2 or y == 3 then
-		if x == 2 or x == 3 then
-			rover.hold = rover.hold + (z == 1 and 1 or -1)
-		end
-	elseif y == 4 then
-		if x == 2 then
+	elseif y == 3 then
+		if x == 1 then
 			held_keys.drift_weight = z == 1
-		elseif x == 3 then
+		elseif x == 2 then
 			held_keys.drift_amount = z == 1
 		end
-	elseif y == 5 then
+	elseif y == 4 then
 		if x == 1 then
 			held_keys.map_a = z == 1
-		elseif x == 4 then
+		elseif x == 2 then
 			held_keys.map_b = z == 1
 		end
 		if held_keys.map_a and held_keys.map_b then
