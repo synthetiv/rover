@@ -37,7 +37,9 @@ for r = 1, 4 do
 	}
 end
 
-screen_tau = 128 / tau
+screen_tau = 120
+screen_offset = 0
+screen_follow = 1
 map_shift = false
 map_cursor = 0
 map_cursor_p = 1
@@ -137,6 +139,10 @@ function tick()
 		local rover = rovers[r]
 		local cut = rover.cut
 		rover:step()
+
+		if r == screen_rover and screen_follow > 0.5 then
+			screen_offset = -rover.position + math.pi
+		end
 
 		crow.output[r].volts = (rover.values.d - 0.5) * 5
 
@@ -518,7 +524,12 @@ end
 function enc(e, d)
 	local rover = rovers[screen_rover]
 	if e == 1 then
-		-- TODO
+		screen_follow = util.clamp(screen_follow + d * 0.1, 0, 1)
+		if d > 0 and screen_follow > 0.5 then
+			screen_follow = 1
+		elseif d < 0 and screen_follow <= 0.5 then
+			screen_follow = 0
+		end
 	elseif e == 2 then
 		if map_shift then
 			local point = rover.map.points[map_cursor_p]
@@ -533,6 +544,10 @@ function enc(e, d)
 		map_cursor = point.i
 		point.o = util.clamp(point.o + d * 0.01, -1, 1)
 	end
+end
+
+function get_point_x(i)
+	return (i + screen_offset) * screen_tau / tau
 end
 
 function get_point_y(o)
@@ -550,30 +565,29 @@ function redraw()
 	screen.aa(0)
 	screen.level(1)
 
-	-- x axis
-	screen.move(0, 63.5)
-	screen.line(128, 63.5)
-	screen.stroke()
-	screen.pixel(63, 62)
-	screen.pixel(127, 62)
-	screen.fill()
-	
 	-- y axis
 	screen.move(0.5, 0)
-	screen.line(0.5, 63)
+	screen.line(0.5, 64)
 	screen.stroke()
 	screen.pixel(1, 0)
 	screen.pixel(1, 31)
+	screen.pixel(1, 63)
 	screen.fill()
 
 	-- cursor
-	screen.move(map_cursor * screen_tau, 0)
+	screen.move(get_point_x(map_cursor) - screen_tau, 0)
+	screen.line_rel(0, 64)
+	screen.stroke()
+	screen.move(get_point_x(map_cursor), 0)
+	screen.line_rel(0, 64)
+	screen.stroke()
+	screen.move(get_point_x(map_cursor) + screen_tau, 0)
 	screen.line_rel(0, 64)
 	screen.stroke()
 
 	screen.aa(1)
 
-	local x = rover.highlight_point.i * screen_tau
+	local x = get_point_x(rover.highlight_point.i)
 	local y = get_point_y(rover.highlight_point.o)
 	local r = 5 / rover.point_highlight.value
 	local l = rover.point_highlight.value ^ 3 * 15
@@ -583,44 +597,40 @@ function redraw()
 		screen.stroke()
 	end
 
-	for p = 0, count + 1 do
+	for p = -count, count * 2 + 1 do
 		local point = points[(p - 1) % count + 1]
-		x = point.i * screen_tau
+		x = get_point_x(point.i) + screen_tau * math.floor((p - 1) / count)
 		y = get_point_y(point.o)
-		if p < 1 then
-			x = x - 128
-		elseif p > count then
-			x = x + 128
+		if p == -count then
+			screen.move(x, y)
+		else
+			screen.line(x, y)
 		end
-		screen.line(x, y)
 	end
 	screen.level(2)
 	screen.stroke()
 
-	for p = 1, count do
-		local point = points[p]
-		x = point.i * screen_tau
+	for p = 1 - count, count * 2 do
+		local point = points[(p - 1) % count + 1]
+		x = get_point_x(point.i) + screen_tau * math.floor((p - 1) / count)
 		y = get_point_y(point.o)
-		if p ~= map_cursor_p then
-			screen.circle(x, y, 2.2)
-			screen.level(0)
-			screen.fill()
-			screen.circle(x, y, 0.9)
-			screen.level(9)
-			screen.fill()
-		elseif p > count then
-		end
+		screen.circle(x, y, 2.2)
+		screen.level(0)
+		screen.fill()
+		screen.circle(x, y, 0.9)
+		screen.level(9)
+		screen.fill()
 	end
 
 	local o, p = map:read(rover.position)
-	x = rover.position * screen_tau
+	x = get_point_x(rover.position)
 	y = get_point_y(o)
 	screen.circle(x, y, 1)
 	screen.level(15)
 	screen.fill()
 
 	local cursor_point = points[map_cursor_p]
-	x = cursor_point.i * screen_tau
+	x = get_point_x(cursor_point.i)
 	y = get_point_y(cursor_point.o)
 	screen.circle(x, y, 2.5)
 	screen.level(0)
