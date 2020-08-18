@@ -28,6 +28,8 @@ for r = 1, 4 do
 		div = false,
 		drift_weight = false,
 		drift_amount = false,
+		map_a = false,
+		map_b = false,
 		input_cut = { false, false, false, false },
 		input = { false, false },
 		level = false,
@@ -144,7 +146,7 @@ function tick()
 			screen_offset = -rover.position + math.pi
 		end
 
-		crow.output[r].volts = (rover.values.d - 0.5) * 5
+		crow.output[r].volts = rover.values.d * 5
 
 		if has_held_key(r) then
 			a_all(r, 0)
@@ -219,15 +221,22 @@ function tick()
 
 		g:led(gx + 2, 1, held_keys.div and 10 or 2)
 
-		local hold_level = 5 - rover.hold
-		g:led(gx + 2, 2, math.floor(hold_level * rover.values.a * rover.values.a * 2 + 0.5))
-		g:led(gx + 2, 3, math.floor(hold_level * rover.values.b * rover.values.b * 2 + 0.5))
-		g:led(gx + 1, 3, math.floor(hold_level * rover.values.c * rover.values.c * 2 + 0.5))
-		g:led(gx + 1, 2, math.floor(hold_level * rover.values.d * rover.values.d * 2 + 0.5))
+		local hold_level = (5 - rover.hold) / 10
+		g:led(gx + 2, 2, led_blend_15(((rover.values.a + 1) * hold_level) ^ 2, 0.09))
+		g:led(gx + 2, 3, led_blend_15(((rover.values.b + 1) * hold_level) ^ 2, 0.09))
+		g:led(gx + 1, 3, led_blend_15(((rover.values.c + 1) * hold_level) ^ 2, 0.09))
+		g:led(gx + 1, 2, led_blend_15(((rover.values.d + 1) * hold_level) ^ 2, 0.09))
 
 		local drift_level = rover.drift.value * rover.drift_amount * 100
 		g:led(gx + 2, 4, led_blend_15(math.max(0, drift_level * 0.05) ^ 2, 0.15))
 		g:led(gx + 1, 4, led_blend_15(math.max(0, -drift_level * 0.05) ^ 2, 0.15))
+
+		local map_level = rover.values.p ^ 2 * (rover.values.p < 0 and -1 or 1)
+		local map_base = (rover.point_highlight.value * 0.4 + 0.3) ^ 2
+		g:led(gx + 2, 5, led_blend_15(math.max(0, map_level), map_base))
+		g:led(gx + 1, 5, led_blend_15(math.max(0, -map_level), map_base))
+		g:led(gx, 5, held_keys.map_a and 4 or 1)
+		g:led(gx + 3, 5, held_keys.map_b and 4 or 1)
 
 		local cut = rover.cut
 		for v = 1, 4 do
@@ -350,6 +359,17 @@ function g.key(x, y, z)
 			held_keys.drift_weight = z == 1
 		elseif x == 3 then
 			held_keys.drift_amount = z == 1
+		end
+	elseif y == 5 then
+		if x == 1 then
+			held_keys.map_a = z == 1
+		elseif x == 4 then
+			held_keys.map_b = z == 1
+		end
+		if held_keys.map_a and held_keys.map_b then
+			rover.map:insert(rover.position)
+			map_cursor = rover.position
+			update_cursor_p()
 		end
 	elseif y == 6 then
 		held_keys.input_cut[x] = z == 1
@@ -587,7 +607,7 @@ function redraw()
 
 	screen.aa(1)
 
-	local x = get_point_x(rover.highlight_point.i)
+	local x = get_point_x(rover.highlight_point.i) % screen_tau
 	local y = get_point_y(rover.highlight_point.o)
 	local r = 5 / rover.point_highlight.value
 	local l = rover.point_highlight.value ^ 3 * 15

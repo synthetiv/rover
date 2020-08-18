@@ -117,10 +117,10 @@ function Rover:step()
 	self.cut.rate = div_rate * step_rate
 	-- TODO: is there a better (less potentially jitter-prone) way to do this when synced to softcut?
 	self.position = (self.position + div_rate) % tau
-	self.values.a = math.cos(self.position - qpi) * 0.5 + 0.5
-	self.values.b = math.sin(self.position - qpi) * 0.5 + 0.5
-	self.values.c = 1 - self.values.a
-	self.values.d = 1 - self.values.b
+	self.values.a = math.cos(self.position - qpi)
+	self.values.b = math.sin(self.position - qpi)
+	self.values.c = -self.values.a
+	self.values.d = -self.values.b
 
 	self.values.p, self.p = self.map:read(self.position)
 	local point = self.map.points[self.p]
