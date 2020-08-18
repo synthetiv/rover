@@ -566,8 +566,12 @@ function enc(e, d)
 		update_cursor_p()
 	elseif e == 3 then
 		local point = rover.map.points[map_cursor_p]
-		map_cursor = point.i
-		point.o = util.clamp(point.o + d * 0.01, -1, 1)
+		if map_focus then
+			map_cursor = point.i
+			point.o = util.clamp(point.o + d * 0.01, -1, 1)
+		else
+			point.t = util.clamp(point.t + d * 0.02, 0, 1)
+		end
 	end
 end
 
@@ -649,36 +653,40 @@ function redraw()
 
 	for p = 1 - count, count * 2 do
 		local point = points[(p - 1) % count + 1]
-		if p ~= map_cursor_p then
+		if p ~= map_cursor_p and point.t > 0 then
 			x = get_point_x(point.i) + screen_tau * math.floor((p - 1) / count)
 			y = get_point_y(point.o)
 			screen.rect(x - 2.5, y - 2.5, 5, 5)
 			screen.level(0)
 			screen.fill()
 			screen.rect(x - 0.5, y - 0.5, 1, 1)
-			screen.level(9)
+			screen.level(math.ceil(point.t * 15))
 			screen.fill()
 		end
 	end
 
 	local o, p = map:read(rover.position)
-	x = get_point_x(rover.position)
 	y = get_point_y(o)
-	screen.rect(x - 0.5, y - 0.5, 1, 1)
-	screen.level(15)
-	screen.fill()
+	for offset = -1, 1 do
+		x = get_point_x(rover.position) + screen_tau * offset
+		screen.rect(x - 0.5, y - 0.5, 1, 1)
+		screen.level(15)
+		screen.fill()
+	end
 
-	x = get_point_x(cursor_point.i) % screen_tau
 	y = get_point_y(cursor_point.o)
-	screen.rect(x - 2.5, y - 2.5, 5, 5)
-	screen.level(0)
-	screen.fill()
-	screen.rect(x - 1.5, y - 1.5, 3, 3)
-	screen.level(map_focus and 15 or 4)
-	screen.fill()
-	screen.rect(x - 0.5, y - 0.5, 1, 1)
-	screen.level(15)
-	screen.fill()
+	for offset = -1, 1 do
+		x = get_point_x(cursor_point.i) + screen_tau * offset
+		screen.rect(x - 2.5, y - 2.5, 5, 5)
+		screen.level(0)
+		screen.fill()
+		screen.rect(x - 1.5, y - 1.5, 3, 3)
+		screen.level(map_focus and 15 or 4)
+		screen.fill()
+		screen.rect(x - 0.5, y - 0.5, 1, 1)
+		screen.level(math.ceil(cursor_point.t * 15))
+		screen.fill()
+	end
 
 	screen.update()
 end

@@ -124,24 +124,28 @@ function Rover:step()
 
 	self.values.p, self.p = self.map:read(self.position)
 	local point = self.map.points[self.p]
+	if point.t > 0 then
 
-	-- check for zero crossings
-	-- this will alias/break if self.rate > math.pi, but like... that'd be really fast
-	local distance = self.position - self.last_position
-	if distance > math.pi then
-		distance = distance - tau
-	elseif distance < -math.pi then
-		distance = distance + tau
-	end
+		-- check for zero crossings
+		-- this will alias/break if self.rate > math.pi, but like... that'd be really fast
+		local distance = self.position - self.last_position
+		if distance > math.pi then
+			distance = distance - tau
+		elseif distance < -math.pi then
+			distance = distance + tau
+		end
 
-	if (self.position >= point.i and self.position - distance < point.i)
-	or (self.position >= point.i - tau and self.position - distance < point.i - tau)
-	or (self.position <= point.i and self.position - distance > point.i)
-	or (self.position <= point.i + tau and self.position - distance > point.i + tau)
-	then
-		self.point_highlight.value = 1
-		self.highlight_point = point
-		self:on_point_cross(point.o)
+		if (self.position >= point.i and self.position - distance < point.i)
+		or (self.position >= point.i - tau and self.position - distance < point.i - tau)
+		or (self.position <= point.i and self.position - distance > point.i)
+		or (self.position <= point.i + tau and self.position - distance > point.i + tau)
+		then
+			if point.t > math.random() then
+				self.point_highlight.value = 1
+				self.highlight_point = point
+				self:on_point_cross(point.o)
+			end
+		end
 	end
 
 	self.last_position = self.position

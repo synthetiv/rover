@@ -6,7 +6,7 @@ local tau = math.pi * 2
 function Path.new()
 	local p = setmetatable({}, Path)
 	p.points = {
-		{ i = 0, o = 0 }
+		{ i = 0, o = 0, t = 0 }
 	}
 	p.count = 1
 	return p
@@ -48,11 +48,13 @@ local function sort_points(a, b)
 	return a.i < b.i
 end
 
-function Path:insert(i, o)
-	if o == nil then
-		o = self:read(i)
-	end
-	table.insert(self.points, { i = i, o = o })
+function Path:insert(i, o, t)
+	local point = {
+		i = i,
+		o = o or self:read(i),
+		t = t or 1
+	}
+	table.insert(self.points, point)
 	table.sort(self.points, sort_points)
 	self.count = self.count + 1
 end
@@ -62,7 +64,7 @@ function Path:delete(i)
 	self.count = self.count - 1
 	table.remove(self.points, p)
 	if self.count < 1 then
-		self:insert(0, 0)
+		self:insert(0, 0, 0)
 	end
 end
 
