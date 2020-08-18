@@ -4,6 +4,8 @@ local SugarCube = include 'lib/sugarcube'
 local tau = math.pi * 2
 local qpi = math.pi / 4
 
+local max_softcut_rate = 24
+
 local Integrator = {}
 Integrator.__index = Integrator
 
@@ -112,6 +114,8 @@ function Rover:step()
 	self.point_highlight:step()
 	local drift_cubed = self.drift_amount * self.drift_amount * self.drift_amount
 	self.rate = self.drift.value * math.max(0, drift_cubed) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -drift_cubed))
+	local max_rate = max_softcut_rate * self.div / step_rate
+	self.rate = util.clamp(self.rate, -max_rate, max_rate)
 	self.disposition = (self.disposition + self.rate) % tau
 	local div_rate = self.rate / self.div
 	self.cut.rate = div_rate * step_rate
