@@ -106,12 +106,13 @@ function Rover.new()
 	r.p = 1
 	r.point_highlight = Integrator.new(0.9, 1)
 	r.highlight_point = r.map.points[1]
-	-- TODO: what's going on with rovers 3-4?
+	r.cut_grains = false
 	r.cut = SugarCube.new()
 	r.cut.rate_slew_time = 15 / step_rate -- 15-step slew time is arbitrary, but seems to sound fine
 	-- TODO: handle jumps around 0.0 which must (?) be caused by loop point fades
+	r.cut.rate = 1
 	r.cut.on_poll = function(self)
-		r.position = self.position
+		-- r.position = self.position
 	end
 	r.hold = 0
 	r.values = {
@@ -147,13 +148,19 @@ function Rover:step()
 	self.point_highlight:step()
 	local drift_cubed = self.drift_amount * self.drift_amount * self.drift_amount
 	self.rate = self.drift.value * math.max(0, drift_cubed) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -drift_cubed)) + self.touch.value
-	local max_rate = max_softcut_rate * self.div / step_rate
-	self.rate = util.clamp(self.rate, -max_rate, max_rate)
+	if not self.cut_grains then
+		local max_rate = max_softcut_rate * self.div / step_rate
+		self.rate = util.clamp(self.rate, -max_rate, max_rate)
+	end
 	self.disposition = (self.disposition + self.rate) % tau
 	local div_rate = self.rate / self.div
-	self.cut.rate = div_rate * step_rate
 	-- TODO: is there a better (less potentially jitter-prone) way to do this when synced to softcut?
 	self.position = (self.position + div_rate) % tau
+	if self.cut_grains then
+		self.cut.position = self.position + self.cut.loop_start
+	else
+		self.cut.rate = div_rate * step_rate
+	end
 	self.values.a = math.cos(self.position - qpi)
 	self.values.b = math.sin(self.position - qpi)
 	self.values.c = -self.values.a

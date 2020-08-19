@@ -31,6 +31,7 @@ for r = 1, 4 do
 		drift_amount = false,
 		map_a = false,
 		map_b = false,
+		fade = false,
 		input_cut = { false, false, false, false },
 		input = { false, false },
 		level = false,
@@ -58,7 +59,7 @@ end
 
 function has_held_key(r)
 	local k = held_keys[r]
-	if k.drive or k.div or k.drift_weight or k.drift_amount or k.level or k.pan or k.cutoff or k.resonance then
+	if k.drive or k.div or k.drift_weight or k.drift_amount or k.map_a or k.map_b or k.fade or k.level or k.pan or k.cutoff or k.resonance then
 		return true
 	end
 	for v = 1, 4 do
@@ -204,6 +205,10 @@ function tick()
 			a_notch(r, rover.position, 2, 0.3)
 		end
 
+		if held_keys.fade then
+			a_unipolar(r, rover.cut.fade_time)
+		end
+
 		for v = 1, 4 do
 			if held_keys.input_cut[v] then
 				if v == r then
@@ -255,10 +260,14 @@ function tick()
 		g:led(gx + 1, 3, led_blend_15(math.max(0, drift_level * 0.05) ^ 2, 0.15))
 		g:led(gx, 3, led_blend_15(math.max(0, -drift_level * 0.05) ^ 2, 0.15))
 
+		g:led(gx + 2, 3, rover.cut_grains and 4 or 2)
+
 		local map_level = rover.values.p ^ 2 * (rover.values.p < 0 and -1 or 1)
 		local map_base = (rover.point_highlight.value * 0.4 + 0.3) ^ 2
 		g:led(gx + 1, 4, led_blend_15(math.max(0, map_level), map_base))
 		g:led(gx, 4, led_blend_15(math.max(0, -map_level), map_base))
+
+		g:led(gx + 2, 4, held_keys.fade and 10 or 2)
 
 		local cut = rover.cut
 		for v = 1, 4 do
@@ -335,6 +344,10 @@ function a.delta(r, d)
 		params:delta(string.format('rover_%d_div', r), d * 0.06)
 	end
 
+	if held_keys.fade then
+		cut.fade_time = util.clamp(cut.fade_time + d * 0.001, 0.001, 1)
+	end
+
 	for v = 1, 4 do
 		if held_keys.input_cut[v] then
 			if v == r then
@@ -401,14 +414,18 @@ function g.key(x, y, z)
 			held_keys.drift_weight = z == 1
 		elseif x == 2 then
 			held_keys.drift_amount = z == 1
+		elseif x == 3 and z == 1 then
+			rover.cut_grains = not rover.cut_grains
 		end
 	elseif y == 4 then
 		if x == 1 then
 			held_keys.map_a = z == 1
 		elseif x == 2 then
 			held_keys.map_b = z == 1
+		elseif x == 3 then
+			held_keys.fade = z == 1
 		end
-		if held_keys.map_a and held_keys.map_b then
+		if (x == 1 or x == 2) and held_keys.map_a and held_keys.map_b then
 			rover.map:insert(rover.position)
 			map_cursor = rover.position
 			update_cursor_p()
