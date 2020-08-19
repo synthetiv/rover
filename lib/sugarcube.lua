@@ -71,7 +71,7 @@ function SugarCube.new(buffer)
 		fade_time_scaled = 0.01,
 		rate_slew_time = 0.01,
 		rate = 1,
-		tilt = -0.01
+		tilt = 0
 	}
 
 	local cube = {
@@ -132,13 +132,10 @@ function SugarCube:init()
 	sc.pre_filter_hp(v, 0);
 	sc.pre_filter_bp(v, 0);
 	sc.pre_filter_br(v, 0);
-	sc.post_filter_dry(v, 0);
-	sc.post_filter_fc(v, 20000);
 	sc.post_filter_rq(v, 1);
-	sc.post_filter_lp(v, 1);
-	sc.post_filter_hp(v, 0);
 	sc.post_filter_bp(v, 0);
 	sc.post_filter_br(v, 0);
+	self.tilt = self.tilt
 end
 
 function SugarCube:stop()
