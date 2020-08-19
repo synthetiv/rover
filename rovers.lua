@@ -246,7 +246,12 @@ function tick()
 		else
 			g:led(gx + 2, 1, held_keys.drive and 10 or 2)
 		end
-		g:led(gx + 2, 2, held_keys.pitch and 10 or 2)
+		if held_keys.pitch then
+			g:led(gx + 2, 2, 10)
+			g:led(gx + 3, 2, rover.pitch_harmonic and 7 or 2)
+		else
+			g:led(gx + 2, 2, 2)
+		end
 
 		local drift_level = rover.drift.value * rover.drift_amount * 100
 		g:led(gx + 1, 3, led_blend_15(math.max(0, drift_level * 0.05) ^ 2, 0.15))
@@ -400,6 +405,11 @@ function g.key(x, y, z)
 			end
 		elseif y == 2 and x == 3 then
 			held_keys.pitch = z == 1
+		elseif y == 2 and x == 4 then
+			if held_keys.pitch and z == 1 then
+				rover.pitch_harmonic = not rover.pitch_harmonic
+				rover:pitch_delta(0)
+			end
 		end
 	elseif y == 3 then
 		if x == 1 then

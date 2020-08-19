@@ -103,6 +103,7 @@ function Rover.new()
 	r.pitch = 0
 	r.pitch_ratio = 1
 	r.pitch_base = 1
+	r.pitch_harmonic = true
 	r.preposition = 0
 	r.position = 0
 	r.last_position = 0
@@ -209,6 +210,13 @@ end
 function Rover:pitch_delta(d)
 	local pitch = self.pitch + d
 	local ratio = math.pow(2, pitch)
+	if self.pitch_harmonic then
+		if ratio > 1 then
+			ratio = math.floor(ratio)
+		else
+			ratio = 1 / math.floor(1 / ratio)
+		end
+	end
 	if self.cut_grains then
 		if ratio > max_softcut_rate then
 			ratio = max_softcut_rate
@@ -216,6 +224,13 @@ function Rover:pitch_delta(d)
 		end
 	else
 		local max_ratio = math.abs(24 / (self.rate * step_rate))
+		if self.pitch_harmonic then
+			if max_ratio > 1 then
+				max_ratio = math.floor(max_ratio)
+			else
+				max_ratio = 1 / math.floor(1 / ratio)
+			end
+		end
 		if ratio > max_ratio then
 			ratio = max_ratio
 			pitch = math.log(ratio) / log2
