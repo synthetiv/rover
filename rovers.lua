@@ -405,6 +405,9 @@ function g.key(x, y, z)
 			end
 		elseif y == 2 and x == 3 then
 			held_keys.pitch = z == 1
+			if z == 1 and held_keys.drive then
+				rover:rebase_pitch()
+			end
 		elseif y == 2 and x == 4 then
 			if held_keys.pitch and z == 1 then
 				rover.pitch_harmonic = not rover.pitch_harmonic

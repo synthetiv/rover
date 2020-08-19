@@ -240,6 +240,19 @@ function Rover:pitch_delta(d)
 	self.pitch_ratio = ratio
 end
 
+function Rover:rebase_pitch()
+	if self.cut_grains then
+		self.pitch_base = self.pitch_ratio * self.pitch_base
+		self.pitch = 0
+		self.pitch_ratio = 1
+	else
+		self.drive.value = self.drive.value * self.pitch_ratio
+		self.pitch = 0
+		self.pitch_ratio = 1
+		self.preposition = self.position
+	end
+end
+
 function Rover:toggle_grains()
 	local pitch_ratio = self.pitch_ratio * self.pitch_base
 	if self.cut_grains then
