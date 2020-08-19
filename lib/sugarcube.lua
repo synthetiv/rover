@@ -83,11 +83,11 @@ function SugarCube.new(buffer)
 	}
 
 	cube.inputs = Levels.new(cube, 2, 1, function(input, value)
-		sc.level_input_cut(input, cube.voice, value)
+		sc.level_input_cut(input, cube.voice, value * value)
 	end)
 
 	cube.sends = Levels.new(cube, 6, 0, function(v2, value)
-		sc.level_cut_cut(cube.voice, v2, value * cube.level)
+		sc.level_cut_cut(cube.voice, v2, value * value * cube.level * cube.level)
 	end)
 
 	setmetatable(cube, {
@@ -167,16 +167,16 @@ function SugarCube:play()
 	sc.rate(self.voice, self.params.rate)
 	sc.rec_level(self.voice, 0)
 	sc.pre_level(self.voice, 1)
-	sc.level(self.voice, self.params.level)
+	sc.level(self.voice, self.level * self.level)
 	for v = 1, 6 do
-		sc.level_cut_cut(self.voice, v, self.sends[v] * self.level)
+		sc.level_cut_cut(self.voice, v, self.sends[v] * self.level * self.level)
 	end
 	self.state = state_PLAY
 end
 
 function SugarCube:record()
 	sc.rate(self.voice, self.params.rate)
-	sc.rec_level(self.voice, self.params.rec_level)
+	sc.rec_level(self.voice, self.params.rec_level * self.params.rec_level)
 	sc.pre_level(self.voice, 0)
 	sc.level(self.voice, 0)
 	for v = 1, 6 do
@@ -187,11 +187,11 @@ end
 
 function SugarCube:overdub()
 	sc.rate(self.voice, self.params.rate)
-	sc.rec_level(self.voice, self.params.rec_level)
-	sc.pre_level(self.voice, self.params.dub_level)
-	sc.level(self.voice, self.params.level)
+	sc.rec_level(self.voice, self.rec_level * self.rec_level)
+	sc.pre_level(self.voice, self.dub_level * self.dub_level)
+	sc.level(self.voice, self.level * self.level)
 	for v = 1, 6 do
-		sc.level_cut_cut(self.voice, v, self.sends[v] * self.level)
+		sc.level_cut_cut(self.voice, v, self.sends[v] * self.level * self.level)
 	end
 	self.state = state_OVERDUB
 end
@@ -229,17 +229,18 @@ end
 
 function SugarCube.setters:rec_level(value)
 	if self.state == state_RECORD then
-		sc.rec_level(self.voice, value)
+		sc.rec_level(self.voice, value * value)
 	end
 end
 
 function SugarCube.setters:dub_level(value)
 	if self.state == state_OVERDUB then
-		sc.pre_level(self.voice, value)
+		sc.pre_level(self.voice, value * value)
 	end
 end
 
 function SugarCube.setters:level(value)
+	value = value * value
 	if self.state == state_PLAY or self.state == state_OVERDUB then
 		sc.level(self.voice, value)
 	end
