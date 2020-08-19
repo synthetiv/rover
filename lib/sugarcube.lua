@@ -50,6 +50,9 @@ SugarCube.state_PLAY = state_PLAY
 SugarCube.state_RECORD = state_RECORD
 SugarCube.state_OVERDUB = state_OVERDUB
 
+local max_fade_time = 2
+SugarCube.max_fade_time = max_fade_time
+
 function SugarCube.new(buffer)
 
 	if v > sc.VOICE_COUNT then
@@ -65,8 +68,9 @@ function SugarCube.new(buffer)
 		level = 1,
 		pan = 0,
 		fade_time = 0.01,
+		fade_time_scaled = 0.01,
 		rate_slew_time = 0.01,
-		rate = 0
+		rate = 1
 	}
 
 	local cube = {
@@ -111,7 +115,7 @@ function SugarCube:init()
 	sc.level(v, 0)
 	sc.level_input_cut(1, v, self.inputs[1] and 1 or 0)
 	sc.level_input_cut(2, v, self.inputs[2] and 1 or 0)
-	sc.fade_time(v, self.params.fade_time)
+	sc.fade_time(v, self.params.fade_time_scaled)
 	sc.loop_start(v, self.params.loop_start)
 	sc.loop_end(v, self.params.loop_end)
 	sc.position(v, self.params.loop_start)
@@ -205,7 +209,7 @@ function SugarCube.setters:loop_start(value)
 	if self.rate >= 0 then
 		sc.loop_start(self.voice, value)
 	else
-		sc.loop_start(self.voice, value + self.fade_time)
+		sc.loop_start(self.voice, value + self.fade_time_scaled)
 	end
 	sc.phase_offset(v, -value)
 end
@@ -214,7 +218,7 @@ function SugarCube.setters:loop_end(value)
 	if self.rate >= 0 then
 		sc.loop_end(self.voice, value)
 	else
-		sc.loop_end(self.voice, value + self.fade_time)
+		sc.loop_end(self.voice, value + self.fade_time_scaled)
 	end
 end
 
@@ -248,13 +252,14 @@ function SugarCube.setters:pan(value)
 end
 
 function SugarCube.setters:fade_time(value)
-	sc.fade_time(self.voice, value)
+	self.params.fade_time_scaled = math.min(value * math.abs(self.rate), max_fade_time)
+	sc.fade_time(self.voice, self.fade_time_scaled)
 	sc.pan_slew_time(self.voice, value)
 	sc.level_slew_time(self.voice, value)
 	sc.recpre_slew_time(self.voice, value)
 	if self.rate < 0 then
-		sc.loop_start(self.voice, self.loop_start + value)
-		sc.loop_end(self.voice, self.loop_end + value)
+		sc.loop_start(self.voice, self.loop_start + self.fade_time_scaled)
+		sc.loop_end(self.voice, self.loop_end + self.fade_time_scaled)
 	end
 end
 
@@ -263,14 +268,15 @@ function SugarCube.setters:rate_slew_time(value)
 end
 
 function SugarCube.setters:rate(value)
-	-- TODO: prevent crashes: keep this from going too high, whatever that is
+	-- TODO: prevent crashes: keep rate from going too high, whatever that is
+	self.params.fade_time_scaled = math.min(self.fade_time * math.abs(value), max_fade_time)
 	-- TODO: only do this when rate has crossed 0
 	if value >= 0 then
 		sc.loop_start(self.voice, self.loop_start)
 		sc.loop_end(self.voice, self.loop_end)
 	else
-		sc.loop_start(self.voice, self.loop_start + self.fade_time)
-		sc.loop_end(self.voice, self.loop_end + self.fade_time)
+		sc.loop_start(self.voice, self.loop_start + self.fade_time_scaled)
+		sc.loop_end(self.voice, self.loop_end + self.fade_time_scaled)
 	end
 	if self.state ~= state_STOP then
 		sc.rate(self.voice, value)

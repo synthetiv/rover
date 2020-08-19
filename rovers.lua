@@ -2,6 +2,7 @@
 
 step_rate = 30
 
+SugarCube = include 'lib/sugarcube'
 Rover = include 'lib/rover'
 
 rover_clock = nil
@@ -14,19 +15,22 @@ seg_per_rad = 64 / tau
 knob_max = math.pi * 3 / 4
 knob_max_2x = math.pi * 3 / 2
 
+log2 = math.log(2)
+
 arc_values = { {}, {}, {}, {} }
 rovers = {}
 held_keys = {}
+local tape_length = tau + SugarCube.max_fade_time + 0.1
 for r = 1, 4 do
 	rovers[r] = Rover.new()
 	rovers[r].on_point_cross = function(self, v)
 		crow.ii.tt.script_v(r, v * 5)
 	end
-	rovers[r].cut.loop_start = (r - 1) * 7 + 1
-	rovers[r].cut.loop_end = (r - 1) * 7 + 1 + tau
+	rovers[r].cut.loop_start = (r - 1) * tape_length + 0.1
+	rovers[r].cut.loop_end = (r - 1) * tape_length + 0.1 + tau
 	held_keys[r] = {
 		drive = false,
-		div = false,
+		pitch = false,
 		drift_weight = false,
 		drift_amount = false,
 		map_a = false,
@@ -59,7 +63,7 @@ end
 
 function has_held_key(r)
 	local k = held_keys[r]
-	if k.drive or k.div or k.drift_weight or k.drift_amount or k.map_a or k.map_b or k.fade or k.level or k.pan or k.cutoff or k.resonance then
+	if k.drive or k.pitch or k.drift_weight or k.drift_amount or k.map_a or k.map_b or k.fade or k.level or k.pan or k.cutoff or k.resonance then
 		return true
 	end
 	for v = 1, 4 do
@@ -144,13 +148,13 @@ function tick()
 	if drive_sink > 0 and drive_source > 0 then
 		local sink = rovers[drive_sink]
 		local source = rovers[drive_source]
-		local sink_drive = sink.drive.value / sink.div
+		local sink_drive = sink.drive.value * sink.pitch_ratio
 		local source_drive = source.rate
 		local diff = source_drive - sink_drive
 		if diff < 0.01 then
-			sink.drive.value = source_drive * sink.div
+			sink.drive.value = source_drive / sink.pitch_ratio
 		else
-			sink.drive.value = (sink_drive + diff * 0.05) * sink.div
+			sink.drive.value = (sink_drive + diff * 0.05) / sink.pitch_ratio
 		end
 	end
 
@@ -171,8 +175,8 @@ function tick()
 		if held_keys.drive or not has_held_key(r) then
 			a_all(r, rover.point_highlight.value * rover.point_highlight.value * 0.3)
 			a_notch(r, rover.position, 2, 1)
-			if rover.div ~= 1 then
-				a_notch(r, rover.disposition, 1.5, 0.3)
+			if rover.pitch_ratio ~= 1 then
+				a_notch(r, rover.preposition, 1.5, 0.3)
 			end
 			a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
 		else
@@ -189,20 +193,8 @@ function tick()
 			a_unipolar(r, rover.drift_weight)
 		end
 		
-		if held_keys.div then
-			local div = params:get(string.format('rover_%d_div', r))
-			div = math.floor(div + 0.5)
-			local start = 0
-			if div < 0 then
-				div = -div
-				start = math.pi
-			end
-			div = div + 1
-			a_notch(r, start, 1, 1)
-			for d = 1, div - 1 do
-				a_notch(r, start + d * tau / div, 1, 0.5)
-			end
-			a_notch(r, rover.position, 2, 0.3)
+		if held_keys.pitch then
+			a_bipolar(r, rover.pitch)
 		end
 
 		if held_keys.fade then
@@ -254,7 +246,7 @@ function tick()
 		else
 			g:led(gx + 2, 1, held_keys.drive and 10 or 2)
 		end
-		g:led(gx + 2, 2, held_keys.div and 10 or 2)
+		g:led(gx + 2, 2, held_keys.pitch and 10 or 2)
 
 		local drift_level = rover.drift.value * rover.drift_amount * 100
 		g:led(gx + 1, 3, led_blend_15(math.max(0, drift_level * 0.05) ^ 2, 0.15))
@@ -339,12 +331,12 @@ function a.delta(r, d)
 		rover.drift:set_weight(rover.drift_weight)
 	end
 
-	if held_keys.div then
-		-- TODO: set quant on controlspec
-		params:delta(string.format('rover_%d_div', r), d * 0.06)
+	if held_keys.pitch then
+		rover:pitch_delta(d_bipolar)
 	end
 
 	if held_keys.fade then
+		-- TODO: scale exponentially (probably need to use a param)
 		cut.fade_time = util.clamp(cut.fade_time + d * 0.001, 0.001, 1)
 	end
 
@@ -407,7 +399,7 @@ function g.key(x, y, z)
 				end
 			end
 		elseif y == 2 and x == 3 then
-			held_keys.div = z == 1
+			held_keys.pitch = z == 1
 		end
 	elseif y == 3 then
 		if x == 1 then
@@ -415,7 +407,7 @@ function g.key(x, y, z)
 		elseif x == 2 then
 			held_keys.drift_amount = z == 1
 		elseif x == 3 and z == 1 then
-			rover.cut_grains = not rover.cut_grains
+			rover:toggle_grains()
 		end
 	elseif y == 4 then
 		if x == 1 then
@@ -552,33 +544,6 @@ function init()
 	- MIDI recorder
 	- CV recorder
 	]]
-
-	for r = 1, 4 do
-		local rover = rovers[r]
-		params:add{
-			id = string.format('rover_%d_div', r),
-			name = string.format('rover %d div', r),
-			type = 'control',
-			controlspec = controlspec.new(-12, 11, 'lin', 1, 0),
-			formatter = function()
-				local value = rover.div
-				if value >= 1 then
-					return string.format('%dx', value)
-				else
-					return string.format('%.2fx', value)
-				end
-			end,
-			action = function(value)
-				value = math.floor(value + 0.5)
-				if value >= 0 then
-					rover.div = value + 1
-				else
-					rover.div = -1 / (value - 1)
-				end
-			end
-		}
-	end
-	params:bang()
 
 	rover_clock:start()
 end

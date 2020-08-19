@@ -3,8 +3,10 @@ local SugarCube = include 'lib/sugarcube'
 
 local tau = math.pi * 2
 local qpi = math.pi / 4
+local log2 = math.log(2)
 
 local max_softcut_rate = 24
+local max_softcut_pitch = math.log(max_softcut_rate) / log2
 
 local Integrator = {}
 Integrator.__index = Integrator
@@ -98,8 +100,10 @@ function Rover.new()
 	r.drive = Integrator.new(1, 0.0001)
 	r.touch = Disintegrator.new()
 	r.rate = 0
-	r.div = 1
-	r.disposition = 0
+	r.pitch = 0
+	r.pitch_ratio = 1
+	r.pitch_base = 1
+	r.preposition = 0
 	r.position = 0
 	r.last_position = 0
 	r.map = Map.new()
@@ -110,7 +114,6 @@ function Rover.new()
 	r.cut = SugarCube.new()
 	r.cut.rate_slew_time = 15 / step_rate -- 15-step slew time is arbitrary, but seems to sound fine
 	-- TODO: handle jumps around 0.0 which must (?) be caused by loop point fades
-	r.cut.rate = 1
 	r.cut.on_poll = function(self)
 		-- r.position = self.position
 	end
@@ -146,21 +149,29 @@ function Rover:step()
 	end
 	self.touch:step()
 	self.point_highlight:step()
+
 	local drift_cubed = self.drift_amount * self.drift_amount * self.drift_amount
-	self.rate = self.drift.value * math.max(0, drift_cubed) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -drift_cubed)) + self.touch.value
-	if not self.cut_grains then
-		local max_rate = max_softcut_rate * self.div / step_rate
-		self.rate = util.clamp(self.rate, -max_rate, max_rate)
-	end
-	self.disposition = (self.disposition + self.rate) % tau
-	local div_rate = self.rate / self.div
-	-- TODO: is there a better (less potentially jitter-prone) way to do this when synced to softcut?
-	self.position = (self.position + div_rate) % tau
+	local pitch_drift = math.pow(2, self.drift.value * math.max(0, -drift_cubed))
+	local position_drift = self.drift.value * math.max(0, drift_cubed)
+
+	local pitch_ratio = self.pitch_ratio * self.pitch_base * pitch_drift
+
+	self.rate = self.drive.value + self.touch.value + position_drift
+
 	if self.cut_grains then
+		self.position = (self.position + self.rate) % tau
+		self.preposition = self.position
+		self.cut.rate = util.clamp(pitch_ratio, -max_softcut_rate, max_softcut_rate)
 		self.cut.position = self.position + self.cut.loop_start
 	else
-		self.cut.rate = div_rate * step_rate
+		local max_rate = max_softcut_rate / (pitch_ratio * step_rate)
+		self.rate = util.clamp(self.rate, -max_rate, max_rate)
+		-- TODO: is there a better (less potentially jitter-prone) way to interpolate between positions reported by softcut?
+		self.position = (self.position + self.rate * pitch_ratio) % tau
+		self.preposition = (self.preposition + self.rate) % tau
+		self.cut.rate = self.rate * pitch_ratio * step_rate
 	end
+
 	self.values.a = math.cos(self.position - qpi)
 	self.values.b = math.sin(self.position - qpi)
 	self.values.c = -self.values.a
@@ -193,6 +204,42 @@ function Rover:step()
 	end
 
 	self.last_position = self.position
+end
+
+function Rover:pitch_delta(d)
+	local pitch = self.pitch + d
+	local ratio = math.pow(2, pitch)
+	if self.cut_grains then
+		if ratio > max_softcut_rate then
+			ratio = max_softcut_rate
+			pitch = max_softcut_pitch
+		end
+	else
+		local max_ratio = math.abs(24 / (self.rate * step_rate))
+		if ratio > max_ratio then
+			ratio = max_ratio
+			pitch = math.log(ratio) / log2
+		end
+	end
+	self.pitch = pitch
+	self.pitch_ratio = ratio
+end
+
+function Rover:toggle_grains()
+	local pitch_ratio = self.pitch_ratio * self.pitch_base
+	if self.cut_grains then
+		self.drive.value = pitch_ratio / step_rate
+		self.pitch_base = 1
+		self.pitch = 0
+		self.pitch_ratio = 1
+		self.cut_grains = false
+	else
+		self.drive.value = self.drive.value * pitch_ratio
+		self.pitch_base = self.drive.value * step_rate
+		self.pitch = 0
+		self.pitch_ratio = 1
+		self.cut_grains = true
+	end
 end
 
 function Rover:on_point_cross() end
