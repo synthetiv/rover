@@ -12,8 +12,8 @@ g = grid.connect()
 
 tau = math.pi * 2
 seg_per_rad = 64 / tau
-knob_max = math.pi * 3 / 4
-knob_max_2x = math.pi * 3 / 2
+knob_max = tau / 3
+knob_max_2x = knob_max * 2
 
 log2 = math.log(2)
 
@@ -121,10 +121,18 @@ end
 
 function a_bipolar(r, value)
 	a_spiral(r, 0, value * knob_max, 0.2, 0.7)
+	if value > 1 then
+		a_notch(r, knob_max, 1, 0.7)
+	elseif value < -1 then
+		a_notch(r, -knob_max, 1, 0.7)
+	end
 end
 
 function a_unipolar(r, value)
 	a_spiral(r, -knob_max, value * knob_max_2x, 0.2, 0.7)
+	if value > 1 then
+		a_notch(r, knob_max, 1, 0.7)
+	end
 end
 
 function a_refresh()
@@ -348,21 +356,21 @@ function a.delta(r, d)
 	for v = 1, 4 do
 		if held_keys.input_cut[v] then
 			if v == r then
-				cut.dub_level = util.clamp(cut.dub_level + d_unipolar, 0, 1)
+				cut.dub_level = util.clamp(cut.dub_level + d_unipolar, 0, 1.2)
 			else
-				rovers[v].cut.sends[r] = util.clamp(rovers[v].cut.sends[r] + d_unipolar, 0, 1)
+				rovers[v].cut.sends[r] = util.clamp(rovers[v].cut.sends[r] + d_unipolar, 0, 1.2)
 			end
 		end
 	end
 
 	for i = 1, 2 do
 		if held_keys.input[i] then
-			cut.inputs[i] = util.clamp(cut.inputs[i] + d_unipolar, 0, 1)
+			cut.inputs[i] = util.clamp(cut.inputs[i] + d_unipolar, 0, 1.2)
 		end
 	end
 
 	if held_keys.level then
-		cut.level = util.clamp(cut.level + d_unipolar, 0, 1)
+		cut.level = util.clamp(cut.level + d_unipolar, 0, 1.2)
 	end
 
 	if held_keys.pan then

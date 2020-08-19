@@ -67,8 +67,9 @@ function SugarCube.new(buffer)
 		dub_level = util.dbamp(-1),
 		level = 1,
 		pan = 0,
-		fade_time = 0.01,
-		fade_time_scaled = 0.01,
+		fade_time = 0.3,
+		fade_time_exp = 0.3 * 0.3,
+		fade_time_scaled = 0.3 * 0.3,
 		rate_slew_time = 0.01,
 		rate = 1,
 		tilt = 0
@@ -108,10 +109,10 @@ function SugarCube:init()
 	sc.enable(v, 1)
 	sc.buffer(v, self.buffer)
 	sc.pan(v, 0)
-	sc.pan_slew_time(v, self.params.fade_time)
-	sc.level_slew_time(v, self.params.fade_time)
+	sc.pan_slew_time(v, self.params.fade_time_exp)
+	sc.level_slew_time(v, self.params.fade_time_exp)
 	sc.rate_slew_time(v, self.params.rate_slew_time)
-	sc.recpre_slew_time(v, self.params.fade_time)
+	sc.recpre_slew_time(v, self.params.fade_time_exp)
 	sc.rate(v, 0)
 	sc.level(v, 0)
 	sc.level_input_cut(1, v, self.inputs[1] and 1 or 0)
@@ -251,11 +252,12 @@ function SugarCube.setters:pan(value)
 end
 
 function SugarCube.setters:fade_time(value)
-	self.params.fade_time_scaled = math.min(value * math.abs(self.rate), max_fade_time)
+	self.params.fade_time_exp = value * value
+	self.params.fade_time_scaled = math.min(self.fade_time_exp * math.abs(self.rate), max_fade_time)
 	sc.fade_time(self.voice, self.fade_time_scaled)
-	sc.pan_slew_time(self.voice, value)
-	sc.level_slew_time(self.voice, value)
-	sc.recpre_slew_time(self.voice, value)
+	sc.pan_slew_time(self.voice, self.fade_time_exp)
+	sc.level_slew_time(self.voice, self.fade_time_exp)
+	sc.recpre_slew_time(self.voice, self.fade_time_exp)
 	if self.rate < 0 then
 		sc.loop_start(self.voice, self.loop_start + self.fade_time_scaled)
 		sc.loop_end(self.voice, self.loop_end + self.fade_time_scaled)
@@ -268,7 +270,7 @@ end
 
 function SugarCube.setters:rate(value)
 	-- TODO: prevent crashes: keep rate from going too high, whatever that is
-	self.params.fade_time_scaled = math.min(self.fade_time * math.abs(value), max_fade_time)
+	self.params.fade_time_scaled = math.min(self.fade_time_exp * math.abs(value), max_fade_time)
 	-- TODO: only do this when rate has crossed 0
 	if value >= 0 then
 		sc.loop_start(self.voice, self.loop_start)
