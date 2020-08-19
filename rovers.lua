@@ -25,6 +25,7 @@ for r = 1, 4 do
 	rovers[r].cut.loop_start = (r - 1) * 7 + 1
 	rovers[r].cut.loop_end = (r - 1) * 7 + 1 + tau
 	held_keys[r] = {
+		drive = false,
 		div = false,
 		drift_weight = false,
 		drift_amount = false,
@@ -38,6 +39,9 @@ for r = 1, 4 do
 		resonance = false
 	}
 end
+
+drive_sink = 0
+drive_source = 0
 
 screen_tau = 120
 screen_offset = 0
@@ -54,7 +58,7 @@ end
 
 function has_held_key(r)
 	local k = held_keys[r]
-	if k.div or k.drift_weight or k.drift_amount or k.level or k.pan or k.cutoff or k.resonance then
+	if k.drive or k.div or k.drift_weight or k.drift_amount or k.level or k.pan or k.cutoff or k.resonance then
 		return true
 	end
 	for v = 1, 4 do
@@ -135,11 +139,26 @@ end
 
 function tick()
 	g:all(0)
+	
+	if drive_sink > 0 and drive_source > 0 then
+		local sink = rovers[drive_sink]
+		local source = rovers[drive_source]
+		local sink_drive = sink.drive.value / sink.div
+		local source_drive = source.rate
+		local diff = source_drive - sink_drive
+		if diff < 0.01 then
+			sink.drive.value = source_drive * sink.div
+		else
+			sink.drive.value = (sink_drive + diff * 0.05) * sink.div
+		end
+	end
+
 	for r = 1, 4 do
 
 		local held_keys = held_keys[r]
 		local rover = rovers[r]
 		local cut = rover.cut
+
 		rover:step()
 
 		if r == screen_rover and screen_follow > 0.5 then
@@ -148,16 +167,16 @@ function tick()
 
 		crow.output[r].volts = rover.values.d * 5
 
-		if has_held_key(r) then
-			a_all(r, 0)
-			a_notch(r, rover.position, 1.5, 0.3)
-		else
+		if held_keys.drive or not has_held_key(r) then
 			a_all(r, rover.point_highlight.value * rover.point_highlight.value * 0.3)
 			a_notch(r, rover.position, 2, 1)
 			if rover.div ~= 1 then
 				a_notch(r, rover.disposition, 1.5, 0.3)
 			end
 			a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
+		else
+			a_all(r, 0)
+			a_notch(r, rover.position, 1.5, 0.3)
 		end
 
 		if held_keys.drift_amount then
@@ -225,6 +244,11 @@ function tick()
 		g:led(gx, 2, led_blend_15(((rover.values.c + 1) * hold_level) ^ 2, 0.09))
 		g:led(gx, 1, led_blend_15(((rover.values.d + 1) * hold_level) ^ 2, 0.09))
 
+		if drive_sink == r or drive_source == r then
+			g:led(gx + 2, 1, 10)
+		else
+			g:led(gx + 2, 1, held_keys.drive and 10 or 2)
+		end
 		g:led(gx + 2, 2, held_keys.div and 10 or 2)
 
 		local drift_level = rover.drift.value * rover.drift_amount * 100
@@ -266,8 +290,16 @@ end
 function a.delta(r, d)
 
 	local rover = rovers[r]
+	local held_keys = held_keys[r]
+	local d_bipolar = d / 384
+	local d_unipolar = d / 768
 
 	if not has_held_key(r) then
+		rover.touch:add(d * math.pi / 512)
+		return
+	end
+
+	if held_keys.drive then
 		-- acceleration logic ripped from norns/lua/core/encoders.lua
 		-- TODO: tune acceleration response
 		local now = util.time()
@@ -282,14 +314,11 @@ function a.delta(r, d)
 		elseif diff < 0.03 then
 			d = d*2
 		end
-		rover:nudge(d)
+		rover.drive:add(d)
 		return
 	end
 
-	local held_keys = held_keys[r]
 	local cut = rover.cut
-	local d_bipolar = d / 384
-	local d_unipolar = d / 768
 
 	if held_keys.drift_amount then
 		rover.drift_amount = rover.drift_amount + d_bipolar
@@ -347,6 +376,23 @@ function g.key(x, y, z)
 	if y == 1 or y == 2 then
 		if x == 1 or x == 2 then
 			rover.hold = rover.hold + (z == 1 and 1 or -1)
+		elseif y == 1 and x == 3 then
+			if z == 1 then
+				held_keys.drive = true
+				if drive_sink > 0 then
+					drive_source = r
+				else
+					drive_sink = r
+				end
+			else
+				held_keys.drive = false
+				if drive_sink == r then
+					drive_sink = drive_source
+					drive_source = 0
+				elseif drive_source == r then
+					drive_source = 0
+				end
+			end
 		elseif y == 2 and x == 3 then
 			held_keys.div = z == 1
 		end

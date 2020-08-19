@@ -49,6 +49,43 @@ function Integrator:set_weight(w)
 	end
 end
 
+local Disintegrator = {}
+Disintegrator.__index = Disintegrator
+
+function Disintegrator.new()
+	local d = setmetatable({}, Disintegrator)
+	d.input = 0
+	d.rate = 0
+	d.value = 0
+	d.weight = 0.7
+	d.integrator = Integrator.new(d.weight)
+	return d
+end
+
+function Disintegrator:add(v)
+	self.input = self.input + v
+end
+
+function Disintegrator:step(v)
+	if v ~= nil then
+		self:add(v)
+	end
+	self.rate = self.input - self.rate * self.weight
+	self.input = 0
+	self.integrator:step(self.rate)
+	self.value = self.integrator.value
+end
+
+-- TODO: think about this relationship:
+-- there's probably a way I could calculate this that would make higher weight values less
+-- 'sluggish' and low ones less 'touchy'
+-- ...or is it just a matter of increasing the power to which `w` is raised in
+-- Integrator:set_weight()?
+function Disintegrator:set_weight(w)
+	self.weight = w
+	self.integrator:set_weight(w)
+end
+
 local Rover = {}
 Rover.__index = Rover
 
@@ -59,6 +96,7 @@ function Rover.new()
 	r.noise = Integrator.new(r.drift_weight)
 	r.drift = Integrator.new(r.drift_weight)
 	r.drive = Integrator.new(1, 0.0001)
+	r.touch = Disintegrator.new()
 	r.rate = 0
 	r.div = 1
 	r.disposition = 0
@@ -86,12 +124,6 @@ function Rover.new()
 	return r
 end
 
--- TODO: in 'vinyl mode', this shouldn't change drive directly, but add to it
--- ...which implies another exp/lin control like drift amount
-function Rover:nudge(delta)
-	self.drive:add(delta)
-end
-
 function Rover:step()
 	if self.hold == 4 then
 		damp = 0.1
@@ -111,9 +143,10 @@ function Rover:step()
 		self.drift:step(self.noise.value, damp)
 		self.drive:step()
 	end
+	self.touch:step()
 	self.point_highlight:step()
 	local drift_cubed = self.drift_amount * self.drift_amount * self.drift_amount
-	self.rate = self.drift.value * math.max(0, drift_cubed) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -drift_cubed))
+	self.rate = self.drift.value * math.max(0, drift_cubed) + self.drive.value * math.pow(2, self.drift.value * math.max(0, -drift_cubed)) + self.touch.value
 	local max_rate = max_softcut_rate * self.div / step_rate
 	self.rate = util.clamp(self.rate, -max_rate, max_rate)
 	self.disposition = (self.disposition + self.rate) % tau
