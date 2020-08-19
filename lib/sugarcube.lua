@@ -70,7 +70,8 @@ function SugarCube.new(buffer)
 		fade_time = 0.01,
 		fade_time_scaled = 0.01,
 		rate_slew_time = 0.01,
-		rate = 1
+		rate = 1,
+		tilt = -0.01
 	}
 
 	local cube = {
@@ -280,6 +281,33 @@ function SugarCube.setters:rate(value)
 	end
 	if self.state ~= state_STOP then
 		sc.rate(self.voice, value)
+	end
+end
+
+function SugarCube.setters:tilt(value)
+	if value > 0 then
+		sc.post_filter_fc(self.voice, util.linexp(0.15, 1, 24, 24000, value))
+	else
+		sc.post_filter_fc(self.voice, util.linexp(0, 0.85, 10, 10000, value + 1))
+	end
+	if value > 0.15 then
+		sc.post_filter_dry(self.voice, 0)
+		sc.post_filter_hp(self.voice, 1)
+		sc.post_filter_lp(self.voice, 0)
+	elseif value > 0 then
+		local blend = value / 0.15
+		sc.post_filter_dry(self.voice, 1 - (blend ^ 2))
+		sc.post_filter_hp(self.voice, 1 - ((1 - blend) ^ 2))
+		sc.post_filter_lp(self.voice, 0)
+	elseif value > -0.15 then
+		local blend = (value + 0.15) / 0.15
+		sc.post_filter_dry(self.voice, 1 - ((1 - blend) ^ 2))
+		sc.post_filter_hp(self.voice, 0)
+		sc.post_filter_lp(self.voice, 1 - (blend ^ 2))
+	else
+		sc.post_filter_dry(self.voice, 0)
+		sc.post_filter_hp(self.voice, 0)
+		sc.post_filter_lp(self.voice, 1)
 	end
 end
 

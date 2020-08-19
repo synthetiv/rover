@@ -40,7 +40,7 @@ for r = 1, 4 do
 		input = { false, false },
 		level = false,
 		pan = false,
-		cutoff = false,
+		tilt = false,
 		resonance = false
 	}
 end
@@ -63,7 +63,7 @@ end
 
 function has_held_key(r)
 	local k = held_keys[r]
-	if k.drive or k.pitch or k.drift_weight or k.drift_amount or k.map_a or k.map_b or k.fade or k.level or k.pan or k.cutoff or k.resonance then
+	if k.drive or k.pitch or k.drift_weight or k.drift_amount or k.map_a or k.map_b or k.fade or k.level or k.pan or k.tilt or k.resonance then
 		return true
 	end
 	for v = 1, 4 do
@@ -225,8 +225,8 @@ function tick()
 			a_bipolar(r, cut.pan)
 		end
 			
-		if held_keys.cutoff then
-			-- TODO:
+		if held_keys.tilt then
+			a_bipolar(r, cut.tilt)
 		end
 
 		if held_keys.resonance then
@@ -281,7 +281,7 @@ function tick()
 		end
 		g:led(gx, 8, math.floor(cut.level ^ 2 * 4 + 0.5))
 		g:led(gx + 1, 8, math.floor(cut.pan ^ 2 * 4 + 0.5))
-		-- TODO: filters
+		g:led(gx + 2, 8, math.floor(cut.tilt ^ 2 * 4 + 0.5))
 	end
 	a_refresh()
 	g:refresh()
@@ -369,8 +369,8 @@ function a.delta(r, d)
 		cut.pan = util.clamp(cut.pan + d_bipolar, -1, 1)
 	end
 
-	if held_keys.cutoff then
-		-- TODO
+	if held_keys.tilt then
+		cut.tilt = util.clamp(cut.tilt + d_bipolar, -1, 1)
 	end
 
 	if held_keys.resonance then
@@ -472,7 +472,7 @@ function g.key(x, y, z)
 		elseif x == 2 then
 			held_keys.pan = z == 1
 		elseif x == 3 then
-			held_keys.cutoff = z == 1
+			held_keys.tilt = z == 1
 		elseif x == 4 then
 			held_keys.resonance = z == 1
 		end
