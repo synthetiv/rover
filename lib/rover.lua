@@ -59,7 +59,7 @@ function Disintegrator.new()
 	d.input = 0
 	d.rate = 0
 	d.value = 0
-	d.weight = 0.7
+	d.weight = 0.8
 	d.integrator = Integrator.new(d.weight)
 	return d
 end
@@ -72,17 +72,12 @@ function Disintegrator:step(v)
 	if v ~= nil then
 		self:add(v)
 	end
-	self.rate = self.input - self.rate * self.weight
+	self.rate = self.input - self.rate * self.rate * self.rate * self.weight
 	self.input = 0
 	self.integrator:step(self.rate)
 	self.value = self.integrator.value
 end
 
--- TODO: think about this relationship:
--- there's probably a way I could calculate this that would make higher weight values less
--- 'sluggish' and low ones less 'touchy'
--- ...or is it just a matter of increasing the power to which `w` is raised in
--- Integrator:set_weight()?
 function Disintegrator:set_weight(w)
 	self.weight = w
 	self.integrator:set_weight(w)
