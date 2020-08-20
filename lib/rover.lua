@@ -111,7 +111,9 @@ function Rover.new()
 	r.cut.rate_slew_time = 15 / step_rate -- 15-step slew time is arbitrary, but seems to sound fine
 	-- TODO: handle jumps around 0.0 which must (?) be caused by loop point fades
 	r.cut.on_poll = function(self)
-		-- r.position = self.position
+		if not r.cut_grains then
+			r.position = self.position
+		end
 	end
 	r.hold = 0
 	r.values = {
@@ -125,22 +127,23 @@ function Rover.new()
 end
 
 function Rover:step()
-	if self.hold == 4 then
-		damp = 0.1
-	elseif self.hold == 3 then
-		damp = 0.5
-	elseif self.hold == 2 then
-		damp = 0.8
-	elseif self.hold == 1 then
-		damp = 0.95
-	end
 	if self.hold > 0 then
+		local damp
+		if self.hold == 4 then
+			damp = 0.1
+		elseif self.hold == 3 then
+			damp = 0.5
+		elseif self.hold == 2 then
+			damp = 0.8
+		elseif self.hold == 1 then
+			damp = 0.95
+		end
 		self.noise:damp(damp)
 		self.drift:damp(damp)
 		self.drive:damp(damp)
 	else
 		self.noise:step(math.random() - 0.5)
-		self.drift:step(self.noise.value, damp)
+		self.drift:step(self.noise.value)
 		self.drive:step()
 	end
 	self.touch:step()
