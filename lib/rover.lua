@@ -99,20 +99,23 @@ function Rover.new()
 	r.pitch_ratio = 1
 	r.pitch_base = 1
 	r.pitch_harmonic = true
-	r.preposition = 0
 	r.position = 0
 	r.last_position = 0
 	r.map = Map.new()
 	r.p = 1
 	r.point_highlight = Integrator.new(0.9, 1)
 	r.highlight_point = r.map.points[1]
-	r.cut_grains = false
 	r.cut = SugarCube.new()
+	r.cut_grains = false
+	r.fade_position = r.position - r.cut.fade_time / 2
+	r.grain_position = r.fade_position
 	r.cut.rate_slew_time = 15 / step_rate -- 15-step slew time is arbitrary, but seems to sound fine
 	-- TODO: handle jumps around 0.0 which must (?) be caused by loop point fades
 	r.cut.on_poll = function(self)
 		if not r.cut_grains then
 			r.position = self.position
+		else
+			r.grain_position = self.position
 		end
 	end
 	r.hold = 0
@@ -158,16 +161,21 @@ function Rover:step()
 	self.rate = self.drive.value + self.touch.value + position_drift
 
 	if self.cut_grains then
+		local fade_time = self.cut.fade_time_scaled
+		local cut_rate = util.clamp(pitch_ratio, -max_softcut_rate, max_softcut_rate)
 		self.position = (self.position + self.rate) % tau
-		self.preposition = self.position
-		self.cut.rate = util.clamp(pitch_ratio, -max_softcut_rate, max_softcut_rate)
-		self.cut.position = self.position + self.cut.loop_start
+		self.cut.rate = cut_rate
+		self.fade_position = (self.position - fade_time) % tau
+		self.cut.position = self.fade_position + self.cut.loop_start
+		-- wrap the grain position to the first half of the fade region; we'll draw two grains on the arc
+		-- if we don't wrap here and the fade region doesn't cross a SC phase quant, grain_position doesn't get reported by softcut and grains may appear to fly out of the fade region
+		self.grain_position = (self.grain_position + cut_rate / step_rate - self.fade_position) % fade_time + self.fade_position
 	else
 		local max_rate = max_softcut_rate / (pitch_ratio * step_rate)
 		self.rate = util.clamp(self.rate, -max_rate, max_rate)
 		-- TODO: is there a better (less potentially jitter-prone) way to interpolate between positions reported by softcut?
+		-- well, you'd want to start by slewing the displayed rate (but NOT the rate sent to SC) based on SC rate slew time, so they matched
 		self.position = (self.position + self.rate * pitch_ratio) % tau
-		self.preposition = (self.preposition + self.rate) % tau
 		self.cut.rate = self.rate * pitch_ratio * step_rate
 	end
 
@@ -176,6 +184,7 @@ function Rover:step()
 	self.values.c = -self.values.a
 	self.values.d = -self.values.b
 
+	-- TODO: does this need to be handled differently in grain mode, for better correlation between audio and map?
 	self.values.p, self.p = self.map:read(self.position)
 	local point = self.map.points[self.p]
 	if point.t > 0 then
@@ -247,7 +256,6 @@ function Rover:rebase_pitch()
 		self.drive.value = self.drive.value * self.pitch_ratio
 		self.pitch = 0
 		self.pitch_ratio = 1
-		self.preposition = self.position
 	end
 end
 
@@ -260,7 +268,7 @@ function Rover:toggle_grains()
 		self.pitch_ratio = 1
 		self.cut_grains = false
 	else
-		local current_pitch = self.drive.value
+		local current_pitch = math.abs(self.drive.value)
 		-- if we're currently stopped, start at a pitch of 1, not 0
 		if current_pitch < 0.001 / step_rate then
 			current_pitch = 1 / step_rate

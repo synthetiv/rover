@@ -180,13 +180,17 @@ function tick()
 
 		crow.output[r].volts = rover.values.d * 5
 
-		if held_keys.drive or not has_held_key(r) then
+		if held_keys.drive or (held_keys.fade and rover.cut_grains) or not has_held_key(r) then
 			a_all(r, rover.point_highlight.value * rover.point_highlight.value * 0.3)
-			a_notch(r, rover.position, 2, 1)
-			if rover.pitch_ratio ~= 1 then
-				a_notch(r, rover.preposition, 1.5, 0.3)
-			end
 			a_notch(r, rover.highlight_point.i, 1.5, rover.point_highlight.value)
+			if rover.cut_grains then
+				a_notch(r, rover.position, rover.cut.fade_time_scaled * 2 * seg_per_rad, 0.5)
+				a_notch(r, rover.grain_position, 1.5, math.min(1, seg_per_rad * (rover.grain_position - rover.fade_position)))
+				a_notch(r, rover.grain_position + rover.cut.fade_time_scaled, 1.5, math.min(1, seg_per_rad * (rover.position - rover.grain_position)))
+			else
+				a_notch(r, rover.position, 2, 1)
+				-- TODO: draw another notch if tape length is something other than 2pi
+			end
 		else
 			a_all(r, 0)
 			a_notch(r, rover.position, 1.5, 0.3)
@@ -214,7 +218,7 @@ function tick()
 			end
 		end
 
-		if held_keys.fade then
+		if held_keys.fade and not rover.cut_grains then
 			a_unipolar(r, rover.cut.fade_time)
 		end
 
@@ -270,9 +274,10 @@ function tick()
 			g:led(gx + 2, 2, 2)
 		end
 
-		local drift_level = rover.drift.value * rover.drift_amount * 100
-		g:led(gx + 1, 3, led_blend_15(math.max(0, drift_level * 0.05) ^ 2, 0.15))
-		g:led(gx, 3, led_blend_15(math.max(0, -drift_level * 0.05) ^ 2, 0.15))
+		local noise_level = rover.noise.value * rover.drift_amount
+		local drift_level = rover.drift.value * rover.drift_amount
+		g:led(gx, 3, led_blend_15(noise_level ^ 2, 0.15))
+		g:led(gx + 1, 3, led_blend_15(drift_level ^ 2, 0.15))
 
 		g:led(gx + 2, 3, rover.cut_grains and 4 or 2)
 
