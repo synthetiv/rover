@@ -257,8 +257,13 @@ function Rover:toggle_grains()
 		self.pitch_ratio = 1
 		self.cut_grains = false
 	else
+		local current_pitch = self.drive.value
+		-- if we're currently stopped, start at a pitch of 1, not 0
+		if current_pitch < 0.001 / step_rate then
+			current_pitch = 1 / step_rate
+		end
 		self.drive.value = self.drive.value * pitch_ratio
-		self.pitch_base = self.drive.value * step_rate
+		self.pitch_base = current_pitch * step_rate
 		self.pitch = 0
 		self.pitch_ratio = 1
 		self.cut_grains = true
