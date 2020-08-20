@@ -109,6 +109,7 @@ function Rover.new()
 	r.cut_grains = false
 	r.fade_position = r.position - r.cut.fade_time / 2
 	r.grain_position = r.fade_position
+	r.grain_reverse = false
 	r.cut.rate_slew_time = 15 / step_rate -- 15-step slew time is arbitrary, but seems to sound fine
 	-- TODO: handle jumps around 0.0 which must (?) be caused by loop point fades
 	r.cut.on_poll = function(self)
@@ -163,6 +164,7 @@ function Rover:step()
 	if self.cut_grains then
 		local fade_time = self.cut.fade_time_scaled
 		local cut_rate = util.clamp(pitch_ratio, -max_softcut_rate, max_softcut_rate)
+		cut_rate = cut_rate * (self.grain_reverse and -1 or 1)
 		self.position = (self.position + self.rate) % tau
 		self.cut.rate = cut_rate
 		self.fade_position = (self.position - fade_time) % tau
@@ -266,13 +268,18 @@ end
 function Rover:toggle_grains()
 	local pitch_ratio = self.pitch_ratio * self.pitch_base
 	if self.cut_grains then
-		self.drive.value = pitch_ratio / step_rate
+		self.drive.value = pitch_ratio / step_rate * (self.grain_reverse and -1 or 1)
 		self.pitch_base = 1
 		self.pitch = 0
 		self.pitch_ratio = 1
 		self.cut_grains = false
 	else
-		local current_pitch = math.abs(self.drive.value)
+		local reverse = false
+		local current_pitch = self.drive.value
+		if current_pitch < 0 then
+			reverse = true
+			current_pitch = -current_pitch
+		end
 		-- if we're currently stopped, start at a pitch of 1, not 0
 		if current_pitch < 0.001 / step_rate then
 			current_pitch = 1 / step_rate

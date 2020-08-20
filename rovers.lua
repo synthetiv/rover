@@ -20,6 +20,7 @@ log2 = math.log(2)
 arc_values = { {}, {}, {}, {} }
 rovers = {}
 held_keys = {}
+key_times = {}
 local tape_length = tau + SugarCube.max_fade_time + 0.1
 for r = 1, 4 do
 	rovers[r] = Rover.new()
@@ -42,6 +43,9 @@ for r = 1, 4 do
 		pan = false,
 		tilt = false,
 		resonance = false
+	}
+	key_times[r] = {
+		pitch = 0
 	}
 end
 
@@ -404,6 +408,7 @@ function g.key(x, y, z)
 	local r = math.floor((x - 1) / 4) + 1
 	local rover = rovers[r]
 	local held_keys = held_keys[r]
+	local key_times = key_times[r]
 	local x = (x - 1) % 4 + 1
 	if y == 1 or y == 2 then
 		if x == 1 or x == 2 then
@@ -427,8 +432,15 @@ function g.key(x, y, z)
 			end
 		elseif y == 2 and x == 3 then
 			held_keys.pitch = z == 1
-			if z == 1 and held_keys.drive then
-				rover:rebase_pitch()
+			if z == 1 then
+				if held_keys.drive then
+					rover:rebase_pitch()
+				end
+				local now = util.time()
+				if rover.cut_grains and now - key_times.pitch < 0.2 then
+					rover.grain_reverse = not rover.grain_reverse
+				end
+				key_times.pitch = now
 			end
 		elseif y == 2 and x == 4 then
 			if held_keys.pitch and z == 1 then
