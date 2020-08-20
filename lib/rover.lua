@@ -169,7 +169,11 @@ function Rover:step()
 		self.cut.position = self.fade_position + self.cut.loop_start
 		-- wrap the grain position to the first half of the fade region; we'll draw two grains on the arc
 		-- if we don't wrap here and the fade region doesn't cross a SC phase quant, grain_position doesn't get reported by softcut and grains may appear to fly out of the fade region
-		self.grain_position = (self.grain_position + cut_rate / step_rate - self.fade_position) % fade_time + self.fade_position
+		if fade_time == 0 then
+			self.grain_position = self.fade_position
+		else
+			self.grain_position = (self.grain_position + cut_rate / step_rate - self.fade_position) % fade_time + self.fade_position
+		end
 	else
 		local max_rate = max_softcut_rate / (pitch_ratio * step_rate)
 		self.rate = util.clamp(self.rate, -max_rate, max_rate)
