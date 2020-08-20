@@ -202,7 +202,16 @@ function tick()
 		end
 		
 		if held_keys.pitch then
-			a_bipolar(r, rover.pitch)
+			a_spiral(r, 0, rover.pitch * knob_max, 0.2, 0.7)
+			if rover.pitch_ratio >= 1 then
+				for h = 2, math.floor(rover.pitch_ratio) do
+					a_notch(r, knob_max * math.log(h) / log2, 1, 0.7)
+				end
+			else
+				for h = 2, math.floor(1 / rover.pitch_ratio) do
+					a_notch(r, -knob_max * math.log(h) / log2, 1, 0.7)
+				end
+			end
 		end
 
 		if held_keys.fade then
