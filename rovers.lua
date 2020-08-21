@@ -60,6 +60,15 @@ map_cursor = 0
 map_cursor_p = 1
 screen_rover = 1
 
+crow_dest = 0
+crow_sources = {}
+for o = 1, 4 do
+	crow_sources[o] = {
+		r = o,
+		s = 'a'
+	}
+end
+
 function update_cursor_p()
 	local _, p = rovers[screen_rover].map:read(map_cursor)
 	map_cursor_p = p
@@ -154,6 +163,13 @@ function a_all(r, value)
 	end
 end
 
+function g_led(x, y, value)
+	if crow_dest ~= 0 then
+		value = math.ceil(value * 0.6)
+	end
+	g:led(x, y, value)
+end
+
 function tick()
 	g:all(0)
 	
@@ -170,6 +186,12 @@ function tick()
 		end
 	end
 
+	local crow_r, crow_s
+	if crow_dest ~= 0 then
+		crow_r = crow_sources[crow_dest].r
+		crow_s = crow_sources[crow_dest].s
+	end
+
 	for r = 1, 4 do
 
 		local held_keys = held_keys[r]
@@ -181,8 +203,6 @@ function tick()
 		if r == screen_rover and screen_follow > 0.5 then
 			screen_offset = -rover.position + math.pi
 		end
-
-		crow.output[r].volts = rover.values.d * 5
 
 		if held_keys.drive or (held_keys.fade and rover.cut_grains) or not has_held_key(r) then
 			a_all(r, rover.point_highlight.value * rover.point_highlight.value * 0.3)
@@ -261,54 +281,89 @@ function tick()
 		local gx = (r - 1) * 4 + 1
 
 		local hold_level = (5 - rover.hold) / 10
-		g:led(gx + 1, 1, led_blend_15(((rover.values.a + 1) * hold_level) ^ 2, 0.09))
-		g:led(gx + 1, 2, led_blend_15(((rover.values.b + 1) * hold_level) ^ 2, 0.09))
-		g:led(gx, 2, led_blend_15(((rover.values.c + 1) * hold_level) ^ 2, 0.09))
-		g:led(gx, 1, led_blend_15(((rover.values.d + 1) * hold_level) ^ 2, 0.09))
+		g_led(gx + 1, 1, led_blend_15(((rover.values.a + 1) * hold_level) ^ 2, 0.09))
+		g_led(gx + 1, 2, led_blend_15(((rover.values.b + 1) * hold_level) ^ 2, 0.09))
+		g_led(gx, 2, led_blend_15(((rover.values.c + 1) * hold_level) ^ 2, 0.09))
+		g_led(gx, 1, led_blend_15(((rover.values.d + 1) * hold_level) ^ 2, 0.09))
 
 		if drive_sink == r or drive_source == r then
-			g:led(gx + 2, 1, 10)
+			g_led(gx + 2, 1, 10)
 		else
-			g:led(gx + 2, 1, held_keys.drive and 10 or 2)
+			g_led(gx + 2, 1, held_keys.drive and 10 or 2)
 		end
 		if held_keys.pitch then
-			g:led(gx + 2, 2, 10)
-			g:led(gx + 3, 2, rover.pitch_harmonic and 7 or 2)
+			g_led(gx + 2, 2, 10)
+			g_led(gx + 3, 2, rover.pitch_harmonic and 7 or 2)
 		else
-			g:led(gx + 2, 2, 2)
+			g_led(gx + 2, 2, 2)
 		end
 
 		local noise_level = rover.noise.value * rover.drift_amount
 		local drift_level = rover.drift.value * rover.drift_amount
-		g:led(gx, 3, led_blend_15(noise_level ^ 2, 0.15))
-		g:led(gx + 1, 3, led_blend_15(drift_level ^ 2, 0.15))
+		g_led(gx, 3, led_blend_15(noise_level ^ 2, 0.15))
+		g_led(gx + 1, 3, led_blend_15(drift_level ^ 2, 0.15))
 
-		g:led(gx + 2, 3, rover.cut_grains and 4 or 2)
+		g_led(gx + 2, 3, rover.cut_grains and 4 or 2)
 
 		local map_level = rover.values.p ^ 2 * (rover.values.p < 0 and -1 or 1)
 		local map_base = (rover.point_highlight.value * 0.4 + 0.3) ^ 2
-		g:led(gx + 1, 4, led_blend_15(math.max(0, map_level), map_base))
-		g:led(gx, 4, led_blend_15(math.max(0, -map_level), map_base))
+		g_led(gx + 1, 4, led_blend_15(math.max(0, map_level), map_base))
+		g_led(gx, 4, led_blend_15(math.max(0, -map_level), map_base))
 
-		g:led(gx + 2, 4, held_keys.fade and 10 or 2)
+		g_led(gx + 2, 4, held_keys.fade and 10 or 2)
 
 		local cut = rover.cut
 		for v = 1, 4 do
 			if v == r then
-				g:led(gx + v - 1, 6, math.floor(cut.dub_level ^ 2 * 4 + 0.5))
+				g_led(gx + v - 1, 6, math.floor(cut.dub_level ^ 2 * 4 + 0.5))
 			else
-				g:led(gx + v - 1, 6, math.floor(rovers[v].cut.sends[r] ^ 2 * 4 + 0.5))
+				g_led(gx + v - 1, 6, math.floor(rovers[v].cut.sends[r] ^ 2 * 4 + 0.5))
 			end
 		end
-		g:led(gx, 7, (cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB) and 6 or 2)
-		g:led(gx + 1, 7, (cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB) and 6 or 2)
+		g_led(gx, 7, (cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB) and 6 or 2)
+		g_led(gx + 1, 7, (cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB) and 6 or 2)
 		for i = 1, 2 do
-			g:led(gx + i + 1, 7, math.floor(cut.inputs[i] ^ 2 * 4 + 0.5))
+			g_led(gx + i + 1, 7, math.floor(cut.inputs[i] ^ 2 * 4 + 0.5))
 		end
-		g:led(gx, 8, math.floor(cut.level ^ 2 * 4 + 0.5))
-		g:led(gx + 1, 8, math.floor(cut.pan ^ 2 * 4 + 0.5))
-		g:led(gx + 2, 8, math.floor(cut.tilt ^ 2 * 4 + 0.5))
+		g_led(gx, 8, math.floor(cut.level ^ 2 * 4 + 0.5))
+		g_led(gx + 1, 8, math.floor(cut.pan ^ 2 * 4 + 0.5))
+		g_led(gx + 2, 8, math.floor(cut.tilt ^ 2 * 4 + 0.5))
+
+		if crow_r == r then
+			if crow_s == 'a' then
+				g:led(gx + 1, 1, 15)
+			elseif crow_s == 'b' then
+				g:led(gx + 1, 2, 15)
+			elseif crow_s == 'c' then
+				g:led(gx, 2, 15)
+			elseif crow_s == 'd' then
+				g:led(gx, 1, 15)
+			elseif crow_s == 'p' then
+				g:led(gx, 4, 15)
+				g:led(gx + 1, 4, 15)
+			elseif crow_s == 'position' then
+				g:led(gx + 2, 1, 15)
+			elseif crow_s == 'pitch' then
+				g:led(gx + 2, 2, 15)
+			end
+		end
 	end
+
+	for o = 1, 4 do
+		local rover = rovers[crow_sources[o].r]
+		local s = crow_sources[o].s
+		local value = 0
+		if s == 'position' then
+			value = rover.position / tau
+		elseif s == 'pitch' then
+			value = rover.pitch_quantized / 5
+		else
+			value = rover.values[s]
+		end
+		crow.output[o].volts = value * 5
+		g:led(16, o, crow_dest == o and 15 or math.floor(value * value * 10))
+	end
+
 	a_refresh()
 	g:refresh()
 	redraw()
@@ -410,37 +465,70 @@ function g.key(x, y, z)
 	local held_keys = held_keys[r]
 	local key_times = key_times[r]
 	local x = (x - 1) % 4 + 1
-	if y == 1 or y == 2 then
+	if r == 4 and x == 4 and y <= 4 then
+		crow_dest = z == 1 and y or 0
+		for ro = 1, 4 do
+			rovers[r].hold = 0
+		end
+		-- TODO: clear all held keys too
+	elseif y == 1 or y == 2 then
 		if x == 1 or x == 2 then
-			rover.hold = rover.hold + (z == 1 and 1 or -1)
-		elseif y == 1 and x == 3 then
-			if z == 1 then
-				held_keys.drive = true
-				if drive_sink > 0 then
-					drive_source = r
+			if crow_dest == 0 then
+				rover.hold = rover.hold + (z == 1 and 1 or -1)
+			elseif z == 1 then
+				crow_sources[crow_dest].r = r
+				if y == 1 then
+					if x == 1 then
+						crow_sources[crow_dest].s = 'd'
+					else
+						crow_sources[crow_dest].s = 'a'
+					end
 				else
-					drive_sink = r
-				end
-			else
-				held_keys.drive = false
-				if drive_sink == r then
-					drive_sink = drive_source
-					drive_source = 0
-				elseif drive_source == r then
-					drive_source = 0
+					if x == 1 then
+						crow_sources[crow_dest].s = 'c'
+					else
+						crow_sources[crow_dest].s = 'b'
+					end
 				end
 			end
+		elseif y == 1 and x == 3 then
+			if crow_dest == 0 then
+				if z == 1 then
+					held_keys.drive = true
+					if drive_sink > 0 then
+						drive_source = r
+					else
+						drive_sink = r
+					end
+				else
+					held_keys.drive = false
+					if drive_sink == r then
+						drive_sink = drive_source
+						drive_source = 0
+					elseif drive_source == r then
+						drive_source = 0
+					end
+				end
+			elseif z == 1 then
+				crow_sources[crow_dest].r = r
+				crow_sources[crow_dest].s = 'position'
+			end
 		elseif y == 2 and x == 3 then
-			held_keys.pitch = z == 1
-			if z == 1 then
-				if held_keys.drive then
-					rover:rebase_pitch()
+			if crow_dest == 0 then
+				held_keys.pitch = z == 1
+				if z == 1 then
+					if held_keys.drive then
+						rover:rebase_pitch()
+					end
+					local now = util.time()
+					if rover.cut_grains and now - key_times.pitch < 0.2 then
+						rover.grain_reverse = not rover.grain_reverse
+					end
+					key_times.pitch = now
 				end
-				local now = util.time()
-				if rover.cut_grains and now - key_times.pitch < 0.2 then
-					rover.grain_reverse = not rover.grain_reverse
-				end
-				key_times.pitch = now
+			elseif z == 1 then
+				crow_sources[crow_dest].r = r
+				crow_sources[crow_dest].s = 'pitch'
 			end
 		elseif y == 2 and x == 4 then
 			if held_keys.pitch and z == 1 then
@@ -457,17 +545,22 @@ function g.key(x, y, z)
 			rover:toggle_grains()
 		end
 	elseif y == 4 then
-		if x == 1 then
-			held_keys.map_a = z == 1
-		elseif x == 2 then
-			held_keys.map_b = z == 1
-		elseif x == 3 then
-			held_keys.fade = z == 1
-		end
-		if (x == 1 or x == 2) and held_keys.map_a and held_keys.map_b then
-			rover.map:insert(rover.position)
-			map_cursor = rover.position
-			update_cursor_p()
+		if crow_dest == 0 then
+			if x == 1 then
+				held_keys.map_a = z == 1
+			elseif x == 2 then
+				held_keys.map_b = z == 1
+			elseif x == 3 then
+				held_keys.fade = z == 1
+			end
+			if (x == 1 or x == 2) and held_keys.map_a and held_keys.map_b then
+				rover.map:insert(rover.position)
+				map_cursor = rover.position
+				update_cursor_p()
+			end
+		elseif z == 1 and (x == 1 or x == 2) then
+			crow_sources[crow_dest].r = r
+			crow_sources[crow_dest].s = 'p'
 		end
 	elseif y == 6 then
 		held_keys.input_cut[x] = z == 1
@@ -520,6 +613,7 @@ function init()
 	crow.clear()
 	for o = 1, 4 do
 		crow.output[o].slew = 1 / step_rate
+		crow.output[o].shape = 'linear'
 	end
 
 	rover_clock = metro.init{
