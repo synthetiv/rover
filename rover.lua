@@ -49,6 +49,11 @@ for r = 1, 4 do
 	}
 end
 
+grid_values = {}
+for x = 1, 16 do
+	grid_values[x] = {}
+end
+
 drive_sink = 0
 drive_source = 0
 
@@ -65,7 +70,7 @@ crow_sources = {}
 for o = 1, 4 do
 	crow_sources[o] = {
 		r = o,
-		s = 'a'
+		s = 'sin'
 	}
 end
 
@@ -164,14 +169,42 @@ function a_all(r, value)
 end
 
 function g_led(x, y, value)
-	if crow_dest ~= 0 then
-		value = math.ceil(value * 0.6)
+	grid_values[x][y] = led_blend(grid_values[x][y], value)
+end
+
+function g_level(x, y, level)
+	if level > 0 then
+		g_led(x, y, (level * 0.3 + 0.37) ^ 2)
 	end
-	g:led(x, y, value)
+end
+
+function g_scale_all(value)
+	for x = 1, 16 do
+		for y = 1, 8 do
+			grid_values[x][y] = grid_values[x][y] * value
+		end
+	end
+end
+
+function g_all(value)
+	for x = 1, 16 do
+		for y = 1, 8 do
+			grid_values[x][y] = value
+		end
+	end
+end
+
+function g_refresh()
+	for x = 1, 16 do
+		for y = 1, 8 do
+			g:led(x, y, math.min(15, math.floor(grid_values[x][y] * 15 + 0.5)))
+		end
+	end
+	g:refresh()
 end
 
 function tick()
-	g:all(0)
+	g_all(0)
 	
 	if drive_sink > 0 and drive_source > 0 then
 		local sink = rovers[drive_sink]
@@ -280,71 +313,79 @@ function tick()
 		
 		local gx = (r - 1) * 4 + 1
 
-		local hold_level = (5 - rover.hold) / 10
-		g_led(gx + 1, 1, led_blend_15(((rover.values.a + 1) * hold_level) ^ 2, 0.09))
-		g_led(gx + 1, 2, led_blend_15(((rover.values.b + 1) * hold_level) ^ 2, 0.09))
-		g_led(gx, 2, led_blend_15(((rover.values.c + 1) * hold_level) ^ 2, 0.09))
-		g_led(gx, 1, led_blend_15(((rover.values.d + 1) * hold_level) ^ 2, 0.09))
+		g_led(gx, 1, 0.09)
+		g_led(gx + 1, 1, 0.09)
+		local hold_level = (5 - rover.hold) / 50
+		g_led(gx, 1, ((rover.values.sin + 5) * hold_level) ^ 2)
+		g_led(gx + 1, 1, ((rover.values.cos + 5) * hold_level) ^ 2)
 
 		if drive_sink == r or drive_source == r then
-			g_led(gx + 2, 1, 10)
+			g_led(gx + 2, 1, 0.66)
 		else
-			g_led(gx + 2, 1, held_keys.drive and 10 or 2)
+			g_led(gx + 2, 1, held_keys.drive and 0.66 or 0.13)
 		end
 		if held_keys.pitch then
-			g_led(gx + 2, 2, 10)
-			g_led(gx + 3, 2, rover.pitch_harmonic and 7 or 2)
+			g_led(gx + 2, 2, 0.66)
+			g_led(gx + 3, 2, rover.pitch_harmonic and 0.5 or 0.13)
 		else
-			g_led(gx + 2, 2, 2)
+			g_led(gx + 2, 2, 0.13)
 		end
 
+		g_led(gx, 3, 0.15)
+		g_led(gx + 1, 3, 0.15)
 		local noise_level = rover.noise.value * rover.drift_amount
 		local drift_level = rover.drift.value * rover.drift_amount
-		g_led(gx, 3, led_blend_15(noise_level ^ 2, 0.15))
-		g_led(gx + 1, 3, led_blend_15(drift_level ^ 2, 0.15))
+		g_led(gx, 3, noise_level ^ 2)
+		g_led(gx + 1, 3, drift_level ^ 2)
 
-		g_led(gx + 2, 3, rover.cut_grains and 4 or 2)
+		g_led(gx + 2, 3, rover.cut_grains and 0.3 or 0.13)
 
-		local map_level = rover.values.p ^ 2 * (rover.values.p < 0 and -1 or 1)
 		local map_base = (rover.point_highlight.value * 0.4 + 0.3) ^ 2
-		g_led(gx + 1, 4, led_blend_15(math.max(0, map_level), map_base))
-		g_led(gx, 4, led_blend_15(math.max(0, -map_level), map_base))
+		g_led(gx + 1, 4, map_base)
+		g_led(gx, 4, map_base)
+		local map_level = rover.values.map ^ 2 * (rover.values.map < 0 and -1 or 1)
+		g_led(gx + 1, 4, math.max(0, map_level))
+		g_led(gx, 4, math.max(0, -map_level))
 
-		g_led(gx + 2, 4, held_keys.fade and 10 or 2)
+		g_led(gx + 2, 4, held_keys.fade and 0.66 or 0.13)
 
 		local cut = rover.cut
 		for v = 1, 4 do
 			if v == r then
-				g_led(gx + v - 1, 6, math.floor(cut.dub_level ^ 2 * 4 + 0.5))
+				g_level(gx + v - 1, 6, cut.dub_level)
 			else
-				g_led(gx + v - 1, 6, math.floor(rovers[v].cut.sends[r] ^ 2 * 4 + 0.5))
+				g_level(gx + v - 1, 6, rovers[v].cut.sends[r])
 			end
 		end
-		g_led(gx, 7, (cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB) and 6 or 2)
-		g_led(gx + 1, 7, (cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB) and 6 or 2)
+		g_led(gx, 7, (cut.state == cut.state_PLAY or cut.state == cut.state_OVERDUB) and 0.9 or 0.13)
+		g_led(gx + 1, 7, (cut.state == cut.state_RECORD or cut.state == cut.state_OVERDUB) and 0.9 or 0.13)
 		for i = 1, 2 do
-			g_led(gx + i + 1, 7, math.floor(cut.inputs[i] ^ 2 * 4 + 0.5))
+			g_level(gx + i + 1, 7, cut.inputs[i])
 		end
-		g_led(gx, 8, math.floor(cut.level ^ 2 * 4 + 0.5))
-		g_led(gx + 1, 8, math.floor(cut.pan ^ 2 * 4 + 0.5))
-		g_led(gx + 2, 8, math.floor(cut.tilt ^ 2 * 4 + 0.5))
+		g_level(gx, 8, cut.level)
+		g_level(gx + 1, 8, cut.pan)
+		g_level(gx + 2, 8, cut.tilt)
 
+	end
+
+	if crow_dest ~= 0 then
+		g_scale_all(0.6)
+	end
+
+	for r = 1, 4 do
+		local gx = (r - 1) * 4 + 1
 		if crow_r == r then
-			if crow_s == 'a' then
-				g:led(gx + 1, 1, 15)
-			elseif crow_s == 'b' then
-				g:led(gx + 1, 2, 15)
-			elseif crow_s == 'c' then
-				g:led(gx, 2, 15)
-			elseif crow_s == 'd' then
-				g:led(gx, 1, 15)
-			elseif crow_s == 'p' then
-				g:led(gx, 4, 15)
-				g:led(gx + 1, 4, 15)
-			elseif crow_s == 'position' then
-				g:led(gx + 2, 1, 15)
+			if crow_s == 'sin' then
+				g_led(gx, 1, 1)
+			elseif crow_s == 'cos' then
+				g_led(gx + 1, 1, 1)
+			elseif crow_s == 'map' then
+				g_led(gx, 4, 1)
+				g_led(gx + 1, 4, 1)
+			elseif crow_s == 'angle' then
+				g_led(gx + 2, 1, 1)
 			elseif crow_s == 'pitch' then
-				g:led(gx + 2, 2, 15)
+				g_led(gx + 2, 2, 1)
 			end
 		end
 	end
@@ -352,20 +393,13 @@ function tick()
 	for o = 1, 4 do
 		local rover = rovers[crow_sources[o].r]
 		local s = crow_sources[o].s
-		local value = 0
-		if s == 'position' then
-			value = rover.position / tau
-		elseif s == 'pitch' then
-			value = rover.pitch_quantized / 5
-		else
-			value = rover.values[s]
-		end
-		crow.output[o].volts = value * 5
-		g:led(16, o, crow_dest == o and 15 or math.floor(value * value * 10))
+		local value = rover.values[s]
+		crow.output[o].volts = value
+		g_led(16, o, crow_dest == o and 1 or (value / 10 + 0.5) ^ 2)
 	end
 
 	a_refresh()
-	g:refresh()
+	g_refresh()
 	redraw()
 end
 
@@ -479,15 +513,9 @@ function g.key(x, y, z)
 				crow_sources[crow_dest].r = r
 				if y == 1 then
 					if x == 1 then
-						crow_sources[crow_dest].s = 'd'
-					else
-						crow_sources[crow_dest].s = 'a'
-					end
-				else
-					if x == 1 then
-						crow_sources[crow_dest].s = 'c'
-					else
-						crow_sources[crow_dest].s = 'b'
+						crow_sources[crow_dest].s = 'sin'
+					elseif x == 2 then
+						crow_sources[crow_dest].s = 'cos'
 					end
 				end
 			end
@@ -511,7 +539,7 @@ function g.key(x, y, z)
 				end
 			elseif z == 1 then
 				crow_sources[crow_dest].r = r
-				crow_sources[crow_dest].s = 'position'
+				crow_sources[crow_dest].s = 'angle'
 			end
 		elseif y == 2 and x == 3 then
 			if crow_dest == 0 then
@@ -560,7 +588,7 @@ function g.key(x, y, z)
 			end
 		elseif z == 1 and (x == 1 or x == 2) then
 			crow_sources[crow_dest].r = r
-			crow_sources[crow_dest].s = 'p'
+			crow_sources[crow_dest].s = 'map'
 		end
 	elseif y == 6 then
 		held_keys.input_cut[x] = z == 1
@@ -671,10 +699,6 @@ function init()
 
 	--[[
 	TODO: possible output types:
-	- crow CV rate
-	- crow CV pos (a, b, c, d)
-	- crow CV map value (p)
-	- ...additional, multi-dimensional map values?
 	- TT events
 	- MIDI events: notes, chords
 	- crow triggers

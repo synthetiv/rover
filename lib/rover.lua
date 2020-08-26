@@ -99,7 +99,6 @@ function Rover.new()
 	r.pitch_ratio = 1
 	r.pitch_base = 1
 	r.pitch_harmonic = true
-	r.pitch_quantized = 0
 	r.position = 0
 	r.last_position = 0
 	r.map = Map.new()
@@ -122,11 +121,11 @@ function Rover.new()
 	end
 	r.hold = 0
 	r.values = {
-		a = 0,
-		b = 0,
-		c = 0,
-		d = 0,
-		p = 0
+		angle = 0,
+		sin = 0,
+		cos = 0,
+		map = 0,
+		pitch = 0
 	}
 	return r
 end
@@ -186,14 +185,14 @@ function Rover:step()
 		self.cut.rate = self.rate * pitch_ratio * step_rate
 	end
 
-	self.values.a = math.cos(self.position - qpi)
-	self.values.b = math.sin(self.position - qpi)
-	self.values.c = -self.values.a
-	self.values.d = -self.values.b
+	self.values.angle = self.position * 5 / tau
+	self.values.cos = math.cos(self.position) * 5
+	self.values.sin = math.sin(self.position) * 5
 
 	-- TODO: does this need to be handled differently in grain mode, for better correlation between audio and map?
-	self.values.p, self.p = self.map:read(self.position)
-	local point = self.map.points[self.p]
+	local map_value, p = self.map:read(self.position)
+	self.values.map = map_value * 5
+	local point = self.map.points[p]
 	if point.t > 0 then
 
 		-- check for zero crossings
@@ -223,7 +222,7 @@ end
 
 function Rover:pitch_delta(d)
 	local pitch = self.pitch + d
-	local pitch_quantized = pitch
+	local value = pitch
 	local ratio = math.pow(2, pitch)
 	if self.pitch_harmonic then
 		if ratio > 1 then
@@ -231,7 +230,7 @@ function Rover:pitch_delta(d)
 		else
 			ratio = 1 / math.floor(1 / ratio)
 		end
-		pitch_quantized = math.log(ratio) / log2
+		value = math.log(ratio) / log2
 	end
 	if self.cut_grains then
 		if ratio > max_softcut_rate then
@@ -250,12 +249,12 @@ function Rover:pitch_delta(d)
 		if ratio > max_ratio then
 			ratio = max_ratio
 			pitch = math.log(ratio) / log2
-			pitch_quantized = pitch
+			value = pitch
 		end
 	end
 	self.pitch = pitch
 	self.pitch_ratio = ratio
-	self.pitch_quantized = pitch_quantized
+	self.values.pitch = value
 end
 
 function Rover:rebase_pitch()
@@ -266,7 +265,7 @@ function Rover:rebase_pitch()
 	end
 	self.pitch = 0
 	self.pitch_ratio = 1
-	self.pitch_quantized = 0
+	self.values.pitch = 0
 end
 
 function Rover:toggle_grains()
@@ -276,7 +275,7 @@ function Rover:toggle_grains()
 		self.pitch_base = 1
 		self.pitch = 0
 		self.pitch_ratio = 1
-		self.pitch_quantized = 0
+		self.values.pitch = 0
 		self.cut_grains = false
 	else
 		local reverse = false
@@ -293,7 +292,7 @@ function Rover:toggle_grains()
 		self.pitch_base = current_pitch * step_rate
 		self.pitch = 0
 		self.pitch_ratio = 1
-		self.pitch_quantized = 0
+		self.values.pitch = 0
 		self.cut_grains = true
 	end
 end
