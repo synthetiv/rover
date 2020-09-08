@@ -32,8 +32,8 @@ for r = 1, 4 do
 	held_keys[r] = {
 		drive = false,
 		pitch = false,
+		noise_weight = false,
 		drift_weight = false,
-		drift_amount = false,
 		map_a = false,
 		map_b = false,
 		fade = false,
@@ -81,7 +81,7 @@ end
 
 function has_held_key(r)
 	local k = held_keys[r]
-	if k.drive or k.pitch or k.drift_weight or k.drift_amount or k.map_a or k.map_b or k.fade or k.level or k.pan or k.tilt or k.resonance then
+	if k.drive or k.pitch or k.noise_weight or k.drift_weight or k.map_a or k.map_b or k.fade or k.level or k.pan or k.tilt or k.resonance then
 		return true
 	end
 	for v = 1, 4 do
@@ -253,12 +253,11 @@ function tick()
 			a_notch(r, rover.position, 1.5, 0.3)
 		end
 
-		if held_keys.drift_amount then
-			a_bipolar(r, rover.drift_amount)
+		if held_keys.noise_weight then
+			a_unipolar(r, rover.noise_weight)
 		end
-
+		
 		if held_keys.drift_weight then
-			-- a_spiral(r, -knob_max, knob_max, 0.15, 0.1) -- TODO
 			a_unipolar(r, rover.drift_weight)
 		end
 		
@@ -333,8 +332,8 @@ function tick()
 
 		g_led(gx, 3, 0.15)
 		g_led(gx + 1, 3, 0.15)
-		local noise_level = rover.noise.value * rover.drift_amount
-		local drift_level = rover.drift.value * rover.drift_amount
+		local noise_level = rover.noise.value
+		local drift_level = rover.drift.value
 		g_led(gx, 3, noise_level ^ 2)
 		g_led(gx + 1, 3, drift_level ^ 2)
 
@@ -441,13 +440,13 @@ function a.delta(r, d)
 
 	local cut = rover.cut
 
-	if held_keys.drift_amount then
-		rover.drift_amount = rover.drift_amount + d_bipolar
+	if held_keys.noise_weight then
+		rover.noise_weight = util.clamp(rover.noise_weight + d_unipolar, 0, 0.999)
+		rover.noise:set_weight(rover.noise_weight)
 	end
 
 	if held_keys.drift_weight then
-		rover.drift_weight = util.clamp(rover.drift_weight + d_unipolar, 0, 0.99)
-		rover.noise:set_weight(rover.drift_weight)
+		rover.drift_weight = util.clamp(rover.drift_weight + d_unipolar, 0, 0.999)
 		rover.drift:set_weight(rover.drift_weight)
 	end
 
@@ -566,9 +565,9 @@ function g.key(x, y, z)
 		end
 	elseif y == 3 then
 		if x == 1 then
-			held_keys.drift_weight = z == 1
+			held_keys.noise_weight = z == 1
 		elseif x == 2 then
-			held_keys.drift_amount = z == 1
+			held_keys.drift_weight = z == 1
 		elseif x == 3 and z == 1 then
 			rover:toggle_grains()
 		end

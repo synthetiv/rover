@@ -13,11 +13,12 @@ Integrator.__index = Integrator
 
 function Integrator.new(f, s)
 	local i = setmetatable({}, Integrator)
-	if s == nil then
-		i:set_weight(f)
-	else
+	i.square_weight = s == true
+	if type(s) == 'number' then
 		i.inertia = f
 		i.sensitivity = s
+	else
+		i:set_weight(f)
 	end
 	i.value = 0.0
 	return i
@@ -44,10 +45,15 @@ function Integrator:set_weight(w)
 		-- zero weight = pass-through, no inertia / no smoothing
 		self.sensitivity = 1
 	else
-		-- set sensitivity such that the area under the integrator's impulse response from 0 (initial
-		-- impulse) to `rate` steps (1 second) will be 1.0 for any value of `w`
+		-- set sensitivity such that either the area under the integrator's impulse response from 0
+		-- steps (initial impulse) to `rate` steps (1 seconds) -- or, if `self.square_weight` is true,
+		-- the area under the square of the impulse response -- will be 1.0 for any value of `w`
 		local logw = math.log(w)
-		self.sensitivity = logw / (math.pow(w, step_rate) - w + logw)
+		if self.square_weight then
+			self.sensitivity = math.sqrt(logw / (math.pow(w, step_rate) - w * w + logw))
+		else
+			self.sensitivity = logw / (math.pow(w, step_rate) - w + logw)
+		end
 	end
 end
 
@@ -89,9 +95,10 @@ Rover.__index = Rover
 function Rover.new()
 	local r = setmetatable({}, Rover)
 	r.drift_amount = -0.15 -- bipolar; positive is linear, negative is exponential
+	r.noise_weight = 0.8
+	r.noise = Integrator.new(r.noise_weight, true)
 	r.drift_weight = 0.8
-	r.noise = Integrator.new(r.drift_weight)
-	r.drift = Integrator.new(r.drift_weight)
+	r.drift = Integrator.new(r.drift_weight, true)
 	r.drive = Integrator.new(1, 0.0001)
 	r.touch = Disintegrator.new()
 	r.rate = 0
